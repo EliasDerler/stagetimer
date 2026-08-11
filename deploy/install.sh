@@ -7,6 +7,9 @@ set -euo pipefail
 APP_DIR="/opt/stagetimer"
 APP_USER="${SUDO_USER:-$(whoami)}"
 
+echo "==> Setting timezone to Europe/Vienna..."
+timedatectl set-timezone Europe/Vienna
+
 echo "==> Installing system packages (labwc, seatd, python3-venv)..."
 apt-get update
 apt-get install -y labwc seatd python3-venv python3-pip

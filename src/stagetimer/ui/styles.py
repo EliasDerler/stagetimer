@@ -23,9 +23,3 @@ NEXT_NAME_QSS = f"color: {config.COLOR_NORMAL}; font-size: 26px;"
 NEXT_DURATION_QSS = f"color: {config.COLOR_NORMAL}; font-size: 22px;"
 
 DIVIDER_QSS = f"background-color: {config.COLOR_NORMAL}; min-height: 2px; max-height: 2px;"
-
-CLOCK_BASE_QSS = "font-size: 220px; font-weight: bold; font-family: 'Consolas', monospace;"
-
-
-def clock_qss_for_color(hex_color: str) -> str:
-    return f"{CLOCK_BASE_QSS} color: {hex_color}; background-color: {config.COLOR_BACKGROUND};"

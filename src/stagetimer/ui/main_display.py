@@ -8,13 +8,13 @@ from PySide6.QtWidgets import QFrame, QHBoxLayout, QVBoxLayout, QWidget
 from stagetimer import config
 from stagetimer.core.state_machine import ColorState, Mode, TimerEngine
 from stagetimer.ui import styles
-from stagetimer.ui.display_widgets import ClockLabel, CurrentBox, LogoBox, NextBar, format_remaining
+from stagetimer.ui.display_widgets import ClockArea, CurrentBox, LogoBox, NextBar, format_remaining
 
 STANDBY_TEXT = "Standing by"
 AWAITING_START_TEXT = "Standing by — press Start"
 NO_EVENTS_TEXT = "No events scheduled"
 DAY_COMPLETE_TEXT = "Day complete"
-EMPTY_CLOCK_TEXT = "--:--"
+BLANK_CLOCK_TEXT = ""
 
 
 class MainDisplay(QWidget):
@@ -30,7 +30,8 @@ class MainDisplay(QWidget):
 
         self.current_box = CurrentBox()
         self.logo_box = LogoBox()
-        self.clock = ClockLabel()
+        self.clock_area = ClockArea()
+        self.clock = self.clock_area.clock
         self.next_bar = NextBar()
 
         top_row = QHBoxLayout()
@@ -43,7 +44,7 @@ class MainDisplay(QWidget):
 
         root = QVBoxLayout(self)
         root.addLayout(top_row)
-        root.addWidget(self.clock, 1)
+        root.addWidget(self.clock_area, 1)
         root.addWidget(divider)
         root.addWidget(self.next_bar)
 
@@ -75,11 +76,11 @@ class MainDisplay(QWidget):
 
         if state.mode == Mode.EMPTY:
             self.current_box.set_name(NO_EVENTS_TEXT)
-            self.clock.set_time_and_state(EMPTY_CLOCK_TEXT, ColorState.NORMAL)
+            self.clock.set_time_and_state(BLANK_CLOCK_TEXT, ColorState.NORMAL)
             self.next_bar.set_next(None, None)
         elif state.mode == Mode.AWAITING_START:
             self.current_box.set_name(AWAITING_START_TEXT)
-            self.clock.set_time_and_state(EMPTY_CLOCK_TEXT, ColorState.NORMAL)
+            self.clock.set_time_and_state(BLANK_CLOCK_TEXT, ColorState.NORMAL)
             self.next_bar.set_next(state.next_name, state.next_duration_seconds)
         elif state.mode == Mode.BEFORE_FIRST:
             self.current_box.set_name(STANDBY_TEXT)
@@ -87,7 +88,7 @@ class MainDisplay(QWidget):
             self.next_bar.set_next(state.next_name, state.next_duration_seconds)
         elif state.mode == Mode.AFTER_LAST:
             self.current_box.set_name(DAY_COMPLETE_TEXT)
-            self.clock.set_time_and_state(EMPTY_CLOCK_TEXT, ColorState.NORMAL)
+            self.clock.set_time_and_state(BLANK_CLOCK_TEXT, ColorState.NORMAL)
             self.next_bar.set_next(None, None)
         else:  # RUNNING or PAUSED
             self.current_box.set_name(state.current_name)
