@@ -91,3 +91,66 @@ def test_single_event_after():
     result = scheduler.resolve(at(9, 20), single)
     assert result.mode == "AFTER_LAST"
     assert result.index == 0
+
+
+def test_no_events_have_start_time_awaiting_start():
+    events = [
+        Event(name="Welcome", start_time=None, duration_seconds=300),
+        Event(name="Main Talk", start_time=None, duration_seconds=1800),
+    ]
+    result = scheduler.resolve(at(9, 0), events)
+    assert result.mode == "AWAITING_START"
+    assert result.index is None
+
+
+def test_only_first_event_anchored_rest_chain():
+    events = [
+        Event(name="Welcome", start_time=time(9, 0, 0), duration_seconds=300),   # 9:00-9:05
+        Event(name="Main Talk", start_time=None, duration_seconds=1800),         # chains: 9:05-9:35
+        Event(name="Q&A", start_time=None, duration_seconds=600),                # chains: 9:35-9:45
+    ]
+    before = scheduler.resolve(at(8, 0), events)
+    assert before.mode == "BEFORE_FIRST"
+    assert before.index == 0
+    assert before.remaining_seconds == 3600
+
+    during_talk = scheduler.resolve(at(9, 10), events)
+    assert during_talk.mode == "RUNNING"
+    assert during_talk.index == 1
+    assert during_talk.remaining_seconds == 25 * 60
+
+    during_qa = scheduler.resolve(at(9, 40), events)
+    assert during_qa.mode == "RUNNING"
+    assert during_qa.index == 2
+
+    after = scheduler.resolve(at(10, 0), events)
+    assert after.mode == "AFTER_LAST"
+    assert after.index == 2
+
+
+def test_mid_list_anchor_resets_chain():
+    events = [
+        Event(name="A", start_time=time(9, 0, 0), duration_seconds=600),    # 9:00-9:10
+        Event(name="B", start_time=None, duration_seconds=600),             # chains: 9:10-9:20
+        Event(name="C", start_time=time(10, 0, 0), duration_seconds=600),   # anchor resets: 10:00-10:10
+        Event(name="D", start_time=None, duration_seconds=600),             # chains off C: 10:10-10:20
+    ]
+    gap = scheduler.resolve(at(9, 30), events)
+    assert gap.mode == "BEFORE_FIRST"
+    assert gap.index == 2
+    assert gap.remaining_seconds == 30 * 60
+
+    during_d = scheduler.resolve(at(10, 15), events)
+    assert during_d.mode == "RUNNING"
+    assert during_d.index == 3
+    assert during_d.remaining_seconds == 5 * 60
+
+
+def test_leading_unanchored_events_are_unreachable_by_wallclock():
+    events = [
+        Event(name="Unreachable", start_time=None, duration_seconds=600),
+        Event(name="Anchored", start_time=time(9, 0, 0), duration_seconds=600),
+    ]
+    result = scheduler.resolve(at(8, 0), events)
+    assert result.mode == "BEFORE_FIRST"
+    assert result.index == 1
