@@ -28,9 +28,18 @@ def run(kiosk: bool = True) -> int:
 
     def toggle_config_window() -> None:
         window = state["config_window"]
-        if window is not None and window.isVisible():
-            window.close()
-            return
+        if window is not None:
+            try:
+                visible = window.isVisible()
+            except RuntimeError:
+                # The underlying Qt widget was already destroyed (WA_DeleteOnClose
+                # deletes it after close()); treat this the same as "not visible".
+                window = None
+                state["config_window"] = None
+                visible = False
+            if visible:
+                window.close()
+                return
         window = ConfigWindow(engine, engine.timetable, on_logo_changed)
         state["config_window"] = window
         window.show()

@@ -113,6 +113,7 @@ class ConfigWindow(QWidget):
         super().__init__(parent)
         self.setWindowTitle("StageTimer — Configuration")
         self.resize(720, 560)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
 
         self.engine = engine
         self._logo_path = timetable.logo_path
