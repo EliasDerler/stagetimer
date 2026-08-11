@@ -11,6 +11,7 @@ from stagetimer.ui import styles
 from stagetimer.ui.display_widgets import ClockLabel, CurrentBox, LogoBox, NextBar, format_remaining
 
 STANDBY_TEXT = "Standing by"
+AWAITING_START_TEXT = "Standing by — press Start"
 NO_EVENTS_TEXT = "No events scheduled"
 DAY_COMPLETE_TEXT = "Day complete"
 EMPTY_CLOCK_TEXT = "--:--"
@@ -76,6 +77,10 @@ class MainDisplay(QWidget):
             self.current_box.set_name(NO_EVENTS_TEXT)
             self.clock.set_time_and_state(EMPTY_CLOCK_TEXT, ColorState.NORMAL)
             self.next_bar.set_next(None, None)
+        elif state.mode == Mode.AWAITING_START:
+            self.current_box.set_name(AWAITING_START_TEXT)
+            self.clock.set_time_and_state(EMPTY_CLOCK_TEXT, ColorState.NORMAL)
+            self.next_bar.set_next(state.next_name, state.next_duration_seconds)
         elif state.mode == Mode.BEFORE_FIRST:
             self.current_box.set_name(STANDBY_TEXT)
             self.clock.set_time_and_state(format_remaining(state.remaining_seconds), ColorState.NORMAL)

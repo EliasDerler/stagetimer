@@ -174,3 +174,15 @@ def test_config_window_add_event_persists_to_engine(qapp, engine, tmp_path, monk
     assert any(e.name == "Added" for e in engine.timetable.events)
     assert (tmp_path / "timetable.json").exists()
     window.close()
+
+
+def test_main_display_shows_awaiting_start_text(qapp):
+    from stagetimer.ui.main_display import AWAITING_START_TEXT
+
+    timetable = Timetable(events=[Event(name="Freeform", start_time=None, duration_seconds=300)])
+    engine = TimerEngine(timetable)
+    display = MainDisplay(engine, kiosk=False)
+    engine.tick(__import__("datetime").datetime(2026, 8, 11, 9, 0))
+    display._on_tick()
+    assert display.current_box._name.text() == AWAITING_START_TEXT
+    display.close()
