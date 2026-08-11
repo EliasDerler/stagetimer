@@ -8,31 +8,30 @@ from datetime import time
 @dataclass
 class Event:
     name: str
-    start_time: time
+    start_time: time | None
     duration_seconds: int
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
-
-    @property
-    def end_time_seconds(self) -> int:
-        """Seconds-since-midnight at which this event ends."""
-        start_seconds = self.start_time.hour * 3600 + self.start_time.minute * 60 + self.start_time.second
-        return start_seconds + self.duration_seconds
 
     def to_dict(self) -> dict:
         return {
             "id": self.id,
             "name": self.name,
-            "start_time": self.start_time.strftime("%H:%M:%S"),
+            "start_time": self.start_time.strftime("%H:%M:%S") if self.start_time else None,
             "duration_seconds": self.duration_seconds,
         }
 
     @classmethod
     def from_dict(cls, data: dict) -> "Event":
-        hh, mm, ss = (int(part) for part in data["start_time"].split(":"))
+        raw_start = data.get("start_time")
+        if raw_start:
+            hh, mm, ss = (int(part) for part in raw_start.split(":"))
+            start_time = time(hh, mm, ss)
+        else:
+            start_time = None
         return cls(
             id=data["id"],
             name=data["name"],
-            start_time=time(hh, mm, ss),
+            start_time=start_time,
             duration_seconds=int(data["duration_seconds"]),
         )
 
@@ -44,7 +43,12 @@ class Timetable:
     version: int = 1
 
     def sorted_events(self) -> list[Event]:
-        return sorted(self.events, key=lambda e: e.start_time)
+        """Returns events in list order (the order they'll play in) — despite
+        the name, this no longer sorts by start_time, since start_time can be
+        None. List order is the source of truth for playback order; the
+        config window's Move Up/Move Down buttons are how operators reorder
+        it."""
+        return list(self.events)
 
     def to_dict(self) -> dict:
         return {

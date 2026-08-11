@@ -31,7 +31,7 @@ def test_save_then_load_roundtrip(tmp_path: Path):
     assert loaded.events[0].id == original.events[0].id
 
 
-def test_save_sorts_events_by_start_time(tmp_path: Path):
+def test_save_preserves_list_order(tmp_path: Path):
     path = tmp_path / "timetable.json"
     unsorted = Timetable(
         events=[
@@ -43,7 +43,20 @@ def test_save_sorts_events_by_start_time(tmp_path: Path):
     persistence.save(path, unsorted)
     loaded = persistence.load(path)
 
-    assert [e.name for e in loaded.events] == ["First", "Second"]
+    assert [e.name for e in loaded.events] == ["Second", "First"]
+
+
+def test_save_then_load_roundtrip_with_no_start_time(tmp_path: Path):
+    path = tmp_path / "timetable.json"
+    original = Timetable(
+        events=[Event(name="Freeform", start_time=None, duration_seconds=300)],
+    )
+
+    persistence.save(path, original)
+    loaded = persistence.load(path)
+
+    assert loaded.events[0].start_time is None
+    assert loaded.events[0].duration_seconds == 300
 
 
 def test_load_malformed_json_backs_up_and_returns_empty(tmp_path: Path):
