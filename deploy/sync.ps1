@@ -31,7 +31,13 @@ $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
 
 Write-Host "==> Ensuring /opt/stagetimer exists on ${PiHost}..."
-ssh $PiHost "sudo mkdir -p /opt/stagetimer && sudo chown `$(whoami):`$(whoami) /opt/stagetimer"
+$dirExists = ssh $PiHost "test -d /opt/stagetimer && echo yes || echo no"
+if ($dirExists.Trim() -ne "yes") {
+    # -t forces a pty so sudo can prompt for a password interactively; without
+    # it, sudo blocks waiting for input that never arrives over a plain
+    # non-interactive ssh command and the script hangs indefinitely.
+    ssh -t $PiHost "sudo mkdir -p /opt/stagetimer && sudo chown `$(whoami):`$(whoami) /opt/stagetimer"
+}
 
 Write-Host "==> Copying source tree to ${PiHost}:/opt/stagetimer ..."
 scp -r "$ProjectRoot\src" "$ProjectRoot\deploy" "$ProjectRoot\pyproject.toml" "${PiHost}:/opt/stagetimer/"
