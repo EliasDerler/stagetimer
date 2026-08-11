@@ -87,6 +87,14 @@ def test_skip_next_shortcut(qapp, engine):
     display.close()
 
 
+def test_event_table_model_blank_start_time_for_untimed_event(qapp):
+    from stagetimer.ui.event_table_model import EventTableModel
+
+    model = EventTableModel([Event(name="Freeform", start_time=None, duration_seconds=300)])
+    index = model.index(0, 1)
+    assert model.data(index, Qt.ItemDataRole.DisplayRole) == ""
+
+
 def test_config_window_opens_and_lists_events(qapp, engine):
     timetable = Timetable(
         events=[Event(name="Keynote", start_time=time(9, 0), duration_seconds=1800)]

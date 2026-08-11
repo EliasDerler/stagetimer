@@ -34,7 +34,7 @@ class EventTableModel(QAbstractTableModel):
         if column == 0:
             return event.name
         if column == 1:
-            return event.start_time.strftime("%H:%M")
+            return event.start_time.strftime("%H:%M") if event.start_time else ""
         if column == 2:
             return format_remaining(event.duration_seconds)
         return None
@@ -49,7 +49,7 @@ class EventTableModel(QAbstractTableModel):
 
     def set_events(self, events: list[Event]) -> None:
         self.beginResetModel()
-        self._events = sorted(events, key=lambda e: e.start_time)
+        self._events = list(events)
         self.endResetModel()
 
     def add_event(self, event: Event) -> None:
