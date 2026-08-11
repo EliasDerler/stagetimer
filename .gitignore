@@ -8,8 +8,3 @@ build/
 dist/
 .pytest_cache/
 .claude/
-
-# runtime data (not committed)
-data/timetable.json
-data/logo.png
-data/*.bak-*
