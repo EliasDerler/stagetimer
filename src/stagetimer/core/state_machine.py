@@ -14,6 +14,7 @@ FLASH_THRESHOLD_SECONDS = 1 * 60
 
 class Mode(Enum):
     EMPTY = "EMPTY"
+    AWAITING_START = "AWAITING_START"
     BEFORE_FIRST = "BEFORE_FIRST"
     RUNNING = "RUNNING"
     PAUSED = "PAUSED"
@@ -101,6 +102,8 @@ class TimerEngine:
 
         if resolution.mode == "EMPTY":
             self._mode = Mode.EMPTY
+        elif resolution.mode == "AWAITING_START":
+            self._mode = Mode.AWAITING_START
         elif resolution.mode == "BEFORE_FIRST":
             self._mode = Mode.BEFORE_FIRST
             self._remaining_seconds = resolution.remaining_seconds
@@ -162,6 +165,17 @@ class TimerEngine:
         self._is_paused = False
         self._mode = Mode.RUNNING
 
+    def start(self) -> None:
+        """Jump straight to the first event and begin playing it, ignoring
+        wall-clock scheduling entirely. Intended for use when nothing is
+        currently running (EMPTY/AWAITING_START/AFTER_LAST) — callers such
+        as the config window gate the button on that, but this method
+        itself will happily override whatever is playing if called anytime,
+        exactly like skip_next()/skip_prev() already do."""
+        if not self._events:
+            return
+        self._jump_to(0)
+
     def skip_next(self) -> None:
         if not self._events:
             return
@@ -195,7 +209,30 @@ class TimerEngine:
         self._remaining_seconds = max(0.0, self._remaining_seconds + delta_seconds)
 
     def get_display_state(self) -> DisplayState:
-        if self._mode == Mode.EMPTY or self._current_index is None:
+        if self._mode == Mode.EMPTY:
+            return DisplayState(
+                mode=self._mode,
+                current_name=None,
+                remaining_seconds=0,
+                next_name=None,
+                next_duration_seconds=None,
+                color_state=ColorState.NORMAL,
+                is_paused=False,
+            )
+
+        if self._mode == Mode.AWAITING_START:
+            first = self._events[0] if self._events else None
+            return DisplayState(
+                mode=self._mode,
+                current_name=None,
+                remaining_seconds=0,
+                next_name=first.name if first else None,
+                next_duration_seconds=first.duration_seconds if first else None,
+                color_state=ColorState.NORMAL,
+                is_paused=False,
+            )
+
+        if self._current_index is None:
             return DisplayState(
                 mode=self._mode,
                 current_name=None,

@@ -220,3 +220,62 @@ def test_overridden_countdown_auto_advances_past_last_to_after_last():
     engine.tick(at(9, 40, 10))
     state = engine.get_display_state()
     assert state.mode == Mode.AFTER_LAST
+
+
+# --- awaiting start / optional start times -----------------------------------
+
+UNANCHORED_EVENTS = [
+    Event(name="Welcome", start_time=None, duration_seconds=300),
+    Event(name="Main Talk", start_time=None, duration_seconds=1800),
+]
+
+
+def test_awaiting_start_mode_with_no_anchors():
+    engine = make_engine(UNANCHORED_EVENTS)
+    engine.tick(at(9, 0))
+    state = engine.get_display_state()
+    assert state.mode == Mode.AWAITING_START
+    assert state.current_name is None
+    assert state.next_name == "Welcome"
+    assert state.next_duration_seconds == 300
+
+
+def test_start_jumps_to_first_event_with_full_duration():
+    engine = make_engine(UNANCHORED_EVENTS)
+    engine.tick(at(9, 0))
+    engine.start()
+    state = engine.get_display_state()
+    assert state.mode == Mode.RUNNING
+    assert state.current_name == "Welcome"
+    assert state.remaining_seconds == 300
+
+
+def test_started_event_ticks_down_and_auto_advances():
+    engine = make_engine(UNANCHORED_EVENTS)
+    engine.tick(at(9, 0))
+    engine.start()
+    engine.tick(at(9, 5, 1))  # 301s later, > 300s duration -> auto-advance
+    state = engine.get_display_state()
+    assert state.current_name == "Main Talk"
+    assert state.mode == Mode.RUNNING
+
+
+def test_start_does_nothing_on_empty_timetable():
+    engine = make_engine([])
+    engine.tick(at(9, 0))
+    engine.start()
+    state = engine.get_display_state()
+    assert state.mode == Mode.EMPTY
+
+
+def test_chained_events_without_start_time_resolve_via_wallclock():
+    events = [
+        Event(name="Welcome", start_time=time(9, 0, 0), duration_seconds=300),
+        Event(name="Main Talk", start_time=None, duration_seconds=1800),
+    ]
+    engine = make_engine(events)
+    engine.tick(at(9, 10))
+    state = engine.get_display_state()
+    assert state.mode == Mode.RUNNING
+    assert state.current_name == "Main Talk"
+    assert state.remaining_seconds == 25 * 60
