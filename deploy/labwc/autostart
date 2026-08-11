@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# labwc autostart: launches StageTimer in fullscreen kiosk mode and respawns
+# it if it crashes (a shell-level equivalent of systemd's Restart=on-failure,
+# since this runs inside the labwc Wayland session rather than as its own
+# system service).
+APP_DIR="/opt/stagetimer"
+
+while true; do
+    "${APP_DIR}/venv/bin/python" -m stagetimer
+    sleep 2
+done &

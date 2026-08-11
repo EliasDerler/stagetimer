@@ -1,0 +1,32 @@
+# Optional alternative launch path for StageTimer via systemd --user.
+#
+# The primary, tested launch path is autologin + labwc's autostart script
+# (see deploy/labwc/autostart), installed automatically by deploy/install.sh.
+# Use this unit instead only if this Pi is already configured for a working
+# systemd --user session with lingering enabled for __APP_USER__
+# (`loginctl enable-linger __APP_USER__`) and a Wayland compositor started
+# ahead of it — verify WAYLAND_DISPLAY/XDG_RUNTIME_DIR values on your actual
+# image before relying on this path.
+#
+# Install as a user unit:
+#   mkdir -p ~/.config/systemd/user
+#   cp stagetimer.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now stagetimer.service
+
+[Unit]
+Description=StageTimer fullscreen event countdown display
+After=graphical-session.target
+Wants=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/opt/stagetimer/venv/bin/python -m stagetimer
+Environment=QT_QPA_PLATFORM=wayland
+Environment=XDG_RUNTIME_DIR=%t
+Environment=WAYLAND_DISPLAY=wayland-0
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=graphical-session.target
