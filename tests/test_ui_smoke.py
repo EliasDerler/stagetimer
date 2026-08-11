@@ -139,6 +139,24 @@ def test_event_edit_dialog_prefills_from_existing_event(qapp):
     assert untimed_dialog.start_edit.isEnabled() is False
 
 
+def test_config_window_start_button_enabled_state(qapp, engine):
+    from stagetimer.core.state_machine import Mode
+
+    timetable = Timetable(events=[Event(name="Freeform", start_time=None, duration_seconds=300)])
+    engine.set_timetable(timetable)
+    engine.tick(__import__("datetime").datetime(2026, 8, 11, 9, 0))
+    assert engine.get_display_state().mode == Mode.AWAITING_START
+
+    window = ConfigWindow(engine, timetable, on_logo_changed=lambda p: None)
+    window._refresh_start_button()
+    assert window._start_btn.isEnabled() is True
+
+    engine.start()
+    window._refresh_start_button()
+    assert window._start_btn.isEnabled() is False
+    window.close()
+
+
 def test_config_window_add_event_persists_to_engine(qapp, engine, tmp_path, monkeypatch):
     from stagetimer import config as st_config
 

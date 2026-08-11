@@ -4,7 +4,7 @@ import shutil
 from datetime import time
 from typing import Callable
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QShortcut, QKeySequence
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -29,7 +29,7 @@ from PySide6.QtWidgets import (
 from stagetimer import config
 from stagetimer.core import persistence
 from stagetimer.core.models import Event, Timetable
-from stagetimer.core.state_machine import TimerEngine
+from stagetimer.core.state_machine import Mode, TimerEngine
 from stagetimer.ui.event_table_model import EventTableModel
 
 
@@ -157,12 +157,14 @@ class ConfigWindow(QWidget):
         logo_box_layout = QVBoxLayout(logo_box)
         logo_box_layout.addLayout(logo_row)
 
+        start_btn = QPushButton("Start")
         pause_btn = QPushButton("Pause")
         resume_btn = QPushButton("Resume")
         prev_btn = QPushButton("« Skip Prev")
         next_btn = QPushButton("Skip Next »")
         minus_btn = QPushButton("-1 min")
         plus_btn = QPushButton("+1 min")
+        start_btn.clicked.connect(self.engine.start)
         pause_btn.clicked.connect(self.engine.pause)
         resume_btn.clicked.connect(self.engine.resume)
         prev_btn.clicked.connect(self.engine.skip_prev)
@@ -171,8 +173,10 @@ class ConfigWindow(QWidget):
         plus_btn.clicked.connect(lambda: self.engine.adjust(60))
 
         controls_row = QHBoxLayout()
-        for btn in (prev_btn, pause_btn, resume_btn, next_btn, minus_btn, plus_btn):
+        for btn in (start_btn, prev_btn, pause_btn, resume_btn, next_btn, minus_btn, plus_btn):
             controls_row.addWidget(btn)
+
+        self._start_btn = start_btn
 
         controls_box = QGroupBox("Live Controls")
         controls_layout = QVBoxLayout(controls_box)
@@ -185,11 +189,24 @@ class ConfigWindow(QWidget):
 
         QShortcut(QKeySequence("Escape"), self, activated=self.close)
 
+        # ConfigWindow and MainDisplay share one TimerEngine but each owns its
+        # own polling loop (there's no engine-change signal) — this timer
+        # keeps the Start button's enabled state in sync with engine mode.
+        self._start_refresh_timer = QTimer(self)
+        self._start_refresh_timer.setInterval(250)
+        self._start_refresh_timer.timeout.connect(self._refresh_start_button)
+        self._start_refresh_timer.start()
+        self._refresh_start_button()
+
     # -- timetable editing -----------------------------------------------------
 
     def _selected_row(self) -> int | None:
         indexes = self.table.selectionModel().selectedRows()
         return indexes[0].row() if indexes else None
+
+    def _refresh_start_button(self) -> None:
+        mode = self.engine.get_display_state().mode
+        self._start_btn.setEnabled(mode in (Mode.EMPTY, Mode.AWAITING_START, Mode.AFTER_LAST))
 
     def _add_event(self) -> None:
         dialog = EventEditDialog(parent=self)
