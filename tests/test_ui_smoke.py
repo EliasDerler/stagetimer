@@ -123,6 +123,22 @@ def test_event_edit_dialog_checkbox_controls_start_time(qapp):
     assert result.name == "Freeform Session"
 
 
+def test_event_edit_dialog_prefills_from_existing_event(qapp):
+    from stagetimer.ui.config_window import EventEditDialog
+
+    timed_event = Event(name="Keynote", start_time=time(14, 30), duration_seconds=600)
+    timed_dialog = EventEditDialog(event=timed_event)
+    assert timed_dialog.has_start_time.isChecked() is True
+    assert timed_dialog.start_edit.isEnabled() is True
+    assert timed_dialog.start_edit.time().hour() == 14
+    assert timed_dialog.start_edit.time().minute() == 30
+
+    untimed_event = Event(name="Freeform", start_time=None, duration_seconds=300)
+    untimed_dialog = EventEditDialog(event=untimed_event)
+    assert untimed_dialog.has_start_time.isChecked() is False
+    assert untimed_dialog.start_edit.isEnabled() is False
+
+
 def test_config_window_add_event_persists_to_engine(qapp, engine, tmp_path, monkeypatch):
     from stagetimer import config as st_config
 
