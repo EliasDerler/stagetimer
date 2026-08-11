@@ -106,6 +106,23 @@ def test_config_window_opens_and_lists_events(qapp, engine):
     window.close()
 
 
+def test_event_edit_dialog_checkbox_controls_start_time(qapp):
+    from stagetimer.ui.config_window import EventEditDialog
+
+    dialog = EventEditDialog()
+    assert dialog.has_start_time.isChecked() is True
+    assert dialog.start_edit.isEnabled() is True
+
+    dialog.has_start_time.setChecked(False)
+    assert dialog.start_edit.isEnabled() is False
+
+    dialog.name_edit.setText("Freeform Session")
+    dialog._on_accept()
+    result = dialog.result_event()
+    assert result.start_time is None
+    assert result.name == "Freeform Session"
+
+
 def test_config_window_add_event_persists_to_engine(qapp, engine, tmp_path, monkeypatch):
     from stagetimer import config as st_config
 

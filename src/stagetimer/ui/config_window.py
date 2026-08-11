@@ -8,6 +8,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QShortcut, QKeySequence
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QCheckBox,
     QDialog,
     QDialogButtonBox,
     QFileDialog,
@@ -39,10 +40,20 @@ class EventEditDialog(QDialog):
 
         self.name_edit = QLineEdit(event.name if event else "")
 
+        self.has_start_time = QCheckBox("Has start time")
+        has_time = event.start_time is not None if event else True
+        self.has_start_time.setChecked(has_time)
+
         self.start_edit = QTimeEdit()
         self.start_edit.setDisplayFormat("HH:mm")
-        start = event.start_time if event else time(9, 0)
+        start = event.start_time if (event and event.start_time) else time(9, 0)
         self.start_edit.setTime(start)
+        self.start_edit.setEnabled(has_time)
+        self.has_start_time.toggled.connect(self.start_edit.setEnabled)
+
+        start_row = QHBoxLayout()
+        start_row.addWidget(self.has_start_time)
+        start_row.addWidget(self.start_edit)
 
         total_minutes = (event.duration_seconds // 60) if event else 15
         self.duration_minutes = QSpinBox()
@@ -52,7 +63,7 @@ class EventEditDialog(QDialog):
 
         form = QFormLayout()
         form.addRow("Name:", self.name_edit)
-        form.addRow("Start time:", self.start_edit)
+        form.addRow("Start time:", start_row)
         form.addRow("Duration:", self.duration_minutes)
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
@@ -71,8 +82,11 @@ class EventEditDialog(QDialog):
         if not name:
             QMessageBox.warning(self, "Missing name", "Please enter an event name.")
             return
-        qt_time = self.start_edit.time()
-        start_time = time(qt_time.hour(), qt_time.minute(), 0)
+        if self.has_start_time.isChecked():
+            qt_time = self.start_edit.time()
+            start_time = time(qt_time.hour(), qt_time.minute(), 0)
+        else:
+            start_time = None
         duration_seconds = self.duration_minutes.value() * 60
 
         kwargs = dict(name=name, start_time=start_time, duration_seconds=duration_seconds)
