@@ -3,12 +3,19 @@ from __future__ import annotations
 from datetime import datetime
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from stagetimer import config
 from stagetimer.core.state_machine import ColorState, Mode, TimerEngine
 from stagetimer.ui import styles
-from stagetimer.ui.display_widgets import ClockArea, CurrentBox, LogoBox, NextBar, format_remaining
+from stagetimer.ui.display_widgets import (
+    ClockArea,
+    CurrentBox,
+    LogoBox,
+    MiniTimetable,
+    NextBar,
+    format_remaining,
+)
 
 STANDBY_TEXT = "Standing by"
 AWAITING_START_TEXT = "Standing by — press Start"
@@ -29,24 +36,38 @@ class MainDisplay(QWidget):
         self.setWindowTitle("StageTimer")
 
         self.current_box = CurrentBox()
+        self.realtime_clock = QLabel()
+        self.realtime_clock.setStyleSheet(styles.REALTIME_CLOCK_QSS)
+        self.realtime_clock.setAlignment(Qt.AlignmentFlag.AlignRight)
         self.logo_box = LogoBox()
         self.clock_area = ClockArea()
         self.clock = self.clock_area.clock
         self.next_bar = NextBar()
+        self.mini_timetable = MiniTimetable()
+        self.mini_timetable.setMinimumWidth(320)
+        self.mini_timetable.setMaximumHeight(140)
+
+        top_right_column = QVBoxLayout()
+        top_right_column.addWidget(self.realtime_clock)
+        top_right_column.addWidget(self.logo_box)
 
         top_row = QHBoxLayout()
         top_row.addWidget(self.current_box, 1)
-        top_row.addWidget(self.logo_box, 0)
+        top_row.addLayout(top_right_column, 0)
 
         divider = QFrame()
         divider.setFrameShape(QFrame.Shape.HLine)
         divider.setStyleSheet(styles.DIVIDER_QSS)
 
+        bottom_row = QHBoxLayout()
+        bottom_row.addWidget(self.next_bar, 1)
+        bottom_row.addWidget(self.mini_timetable, 0)
+
         root = QVBoxLayout(self)
         root.addLayout(top_row)
         root.addWidget(self.clock_area, 1)
         root.addWidget(divider)
-        root.addWidget(self.next_bar)
+        root.addLayout(bottom_row)
 
         if kiosk:
             self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
@@ -94,3 +115,6 @@ class MainDisplay(QWidget):
             self.current_box.set_name(state.current_name)
             self.clock.set_time_and_state(format_remaining(state.remaining_seconds), state.color_state)
             self.next_bar.set_next(state.next_name, state.next_duration_seconds)
+
+        self.realtime_clock.setText(datetime.now().strftime("%H:%M:%S"))
+        self.mini_timetable.set_rows(self.engine.get_schedule_overview())

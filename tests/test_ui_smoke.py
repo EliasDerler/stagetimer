@@ -176,6 +176,15 @@ def test_config_window_add_event_persists_to_engine(qapp, engine, tmp_path, monk
     window.close()
 
 
+def test_main_display_shows_realtime_clock_and_mini_timetable(qapp, engine):
+    display = MainDisplay(engine, kiosk=False)
+    display._on_tick()
+    assert display.realtime_clock.text() != ""
+    assert ":" in display.realtime_clock.text()
+    assert display.mini_timetable.count() == len(engine.timetable.events)
+    display.close()
+
+
 def test_main_display_shows_awaiting_start_text(qapp):
     from stagetimer.ui.main_display import AWAITING_START_TEXT
 
