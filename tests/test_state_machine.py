@@ -279,3 +279,52 @@ def test_chained_events_without_start_time_resolve_via_wallclock():
     assert state.mode == Mode.RUNNING
     assert state.current_name == "Main Talk"
     assert state.remaining_seconds == 25 * 60
+
+
+# --- schedule overview ---------------------------------------------------------
+
+def test_schedule_overview_empty_timetable():
+    engine = make_engine([])
+    engine.tick(at(9, 0))
+    assert engine.get_schedule_overview() == []
+
+
+def test_schedule_overview_marks_current_row_while_running():
+    engine = make_engine(TWO_EVENTS)
+    engine.tick(at(9, 10))
+    rows = engine.get_schedule_overview()
+    assert [r.name for r in rows] == ["Keynote", "Panel"]
+    assert rows[0].is_current is True
+    assert rows[1].is_current is False
+    assert rows[0].effective_start_seconds == 9 * 3600
+    assert rows[0].duration_seconds == 1800
+
+
+def test_schedule_overview_marks_current_row_while_paused():
+    engine = make_engine(TWO_EVENTS)
+    engine.tick(at(9, 10))
+    engine.pause()
+    rows = engine.get_schedule_overview()
+    assert rows[0].is_current is True
+
+
+def test_schedule_overview_no_current_row_before_first():
+    engine = make_engine(TWO_EVENTS)
+    engine.tick(at(8, 45))
+    rows = engine.get_schedule_overview()
+    assert all(not r.is_current for r in rows)
+
+
+def test_schedule_overview_no_current_row_after_last():
+    engine = make_engine(TWO_EVENTS)
+    engine.tick(at(23, 0))
+    rows = engine.get_schedule_overview()
+    assert all(not r.is_current for r in rows)
+
+
+def test_schedule_overview_no_current_row_awaiting_start():
+    engine = make_engine(UNANCHORED_EVENTS)
+    engine.tick(at(9, 0))
+    rows = engine.get_schedule_overview()
+    assert all(not r.is_current for r in rows)
+    assert rows[0].effective_start_seconds is None

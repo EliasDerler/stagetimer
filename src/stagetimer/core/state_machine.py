@@ -49,6 +49,14 @@ class DisplayState:
     is_paused: bool
 
 
+@dataclass(frozen=True)
+class ScheduleRow:
+    name: str
+    duration_seconds: int
+    effective_start_seconds: int | None
+    is_current: bool
+
+
 class TimerEngine:
     """Owns the live playback state for the currently-showing event.
 
@@ -278,3 +286,16 @@ class TimerEngine:
             color_state=color_state_for(self._remaining_seconds),
             is_paused=self._is_paused,
         )
+
+    def get_schedule_overview(self) -> list[ScheduleRow]:
+        starts = scheduler.compute_effective_start_times(self._events)
+        is_live = self._mode in (Mode.RUNNING, Mode.PAUSED)
+        return [
+            ScheduleRow(
+                name=event.name,
+                duration_seconds=event.duration_seconds,
+                effective_start_seconds=start,
+                is_current=is_live and i == self._current_index,
+            )
+            for i, (event, start) in enumerate(zip(self._events, starts))
+        ]
