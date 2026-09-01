@@ -3,16 +3,19 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QFrame,
     QGraphicsOpacityEffect,
     QHBoxLayout,
     QLabel,
+    QListWidget,
+    QListWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
 from stagetimer import config
-from stagetimer.core.state_machine import ColorState
+from stagetimer.core.state_machine import ColorState, ScheduleRow
 from stagetimer.ui import screen_metrics, styles
 
 
@@ -23,6 +26,15 @@ def format_remaining(seconds: float) -> str:
     if hours > 0:
         return f"{hours:02d}:{minutes:02d}:{secs:02d}"
     return f"{minutes:02d}:{secs:02d}"
+
+
+def format_clock_time(seconds: int | None) -> str:
+    if seconds is None:
+        return "--:--"
+    total = seconds % (24 * 3600)
+    hours, rem = divmod(total, 3600)
+    minutes = rem // 60
+    return f"{hours:02d}:{minutes:02d}"
 
 
 def fit_clock_font_pixel_size(
@@ -313,3 +325,33 @@ class NextBar(QWidget):
         self.setVisible(True)
         self._name.setText(name)
         self._duration.setText(f"-{format_remaining(duration_seconds or 0)}")
+
+
+class MiniTimetable(QListWidget):
+    """Compact read-only overview of the whole timetable, current event
+    highlighted green and kept in view via auto-scroll."""
+
+    def __init__(self, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self.setFrameShape(QFrame.Shape.NoFrame)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setStyleSheet(styles.MINI_TIMETABLE_QSS)
+
+    def set_rows(self, rows: list[ScheduleRow]) -> None:
+        self.clear()
+        current_item: QListWidgetItem | None = None
+        for row in rows:
+            time_label = format_clock_time(row.effective_start_seconds)
+            duration_label = format_remaining(row.duration_seconds)
+            item = QListWidgetItem(f"{time_label}  {row.name}  ({duration_label})")
+            if row.is_current:
+                item.setForeground(QColor(config.COLOR_SUCCESS_GREEN))
+                font = item.font()
+                font.setBold(True)
+                item.setFont(font)
+                current_item = item
+            self.addItem(item)
+        if current_item is not None:
+            self.scrollToItem(current_item, QAbstractItemView.ScrollHint.PositionAtCenter)

@@ -6,7 +6,14 @@ import pytest
 from PySide6.QtGui import QFont, QFontMetrics
 from PySide6.QtWidgets import QApplication
 
-from stagetimer.ui.display_widgets import fit_clock_font_pixel_size, format_remaining
+from stagetimer import config
+from stagetimer.core.state_machine import ScheduleRow
+from stagetimer.ui.display_widgets import (
+    MiniTimetable,
+    fit_clock_font_pixel_size,
+    format_clock_time,
+    format_remaining,
+)
 
 
 @pytest.fixture(scope="module")
@@ -58,3 +65,41 @@ def test_fit_clock_font_pixel_size_never_goes_below_minimum(qapp):
 def test_fit_clock_font_pixel_size_empty_text_returns_height_candidate(qapp):
     size = fit_clock_font_pixel_size("", "Arial", True, available_width=10, available_height=400)
     assert size == max(10, int(400 * 0.65))
+
+
+def test_format_clock_time_none_is_dashes():
+    assert format_clock_time(None) == "--:--"
+
+
+def test_format_clock_time_formats_hh_mm():
+    assert format_clock_time(9 * 3600 + 5 * 60) == "09:05"
+
+
+def test_mini_timetable_set_rows_populates_list(qapp):
+    rows = [
+        ScheduleRow(name="Keynote", duration_seconds=1800, effective_start_seconds=9 * 3600, is_current=True),
+        ScheduleRow(name="Panel", duration_seconds=1200, effective_start_seconds=None, is_current=False),
+    ]
+    widget = MiniTimetable()
+    widget.set_rows(rows)
+    assert widget.count() == 2
+    assert "Keynote" in widget.item(0).text()
+    assert "09:00" in widget.item(0).text()
+    assert "--:--" in widget.item(1).text()
+
+
+def test_mini_timetable_current_row_is_bold_and_green(qapp):
+    rows = [ScheduleRow(name="Keynote", duration_seconds=1800, effective_start_seconds=9 * 3600, is_current=True)]
+    widget = MiniTimetable()
+    widget.set_rows(rows)
+    item = widget.item(0)
+    assert item.font().bold() is True
+    assert item.foreground().color().name().lower() == config.COLOR_SUCCESS_GREEN.lower()
+
+
+def test_mini_timetable_clears_previous_rows(qapp):
+    widget = MiniTimetable()
+    widget.set_rows([ScheduleRow(name="A", duration_seconds=60, effective_start_seconds=0, is_current=False)])
+    widget.set_rows([ScheduleRow(name="B", duration_seconds=60, effective_start_seconds=0, is_current=False)])
+    assert widget.count() == 1
+    assert "B" in widget.item(0).text()
