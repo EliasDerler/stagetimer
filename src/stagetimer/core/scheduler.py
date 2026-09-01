@@ -55,6 +55,16 @@ def _compute_effective_times(events: list[Event]) -> list[_Effective]:
     return effective
 
 
+def compute_effective_start_times(events: list[Event]) -> list[int | None]:
+    """Public wrapper around `_compute_effective_times` exposing just the
+    effective start (seconds since midnight, or None if unreachable by wall
+    clock) for each event, aligned by index with `events`. Used by the UI to
+    show a clock time for every row in a full-timetable overview, including
+    events that chain off a previous event's end rather than having their
+    own `start_time`."""
+    return [e.start for e in _compute_effective_times(events)]
+
+
 def resolve(now: datetime, events: list[Event]) -> Resolution:
     """Resolve the current/next event purely from wall-clock time.
 

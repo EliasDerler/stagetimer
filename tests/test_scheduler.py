@@ -154,3 +154,27 @@ def test_leading_unanchored_events_are_unreachable_by_wallclock():
     result = scheduler.resolve(at(8, 0), events)
     assert result.mode == "BEFORE_FIRST"
     assert result.index == 1
+
+
+def test_compute_effective_start_times_all_anchored():
+    events = [
+        Event(name="A", start_time=time(9, 0, 0), duration_seconds=600),
+        Event(name="B", start_time=time(9, 30, 0), duration_seconds=600),
+    ]
+    assert scheduler.compute_effective_start_times(events) == [9 * 3600, 9 * 3600 + 30 * 60]
+
+
+def test_compute_effective_start_times_chained():
+    events = [
+        Event(name="Welcome", start_time=time(9, 0, 0), duration_seconds=300),
+        Event(name="Main Talk", start_time=None, duration_seconds=1800),
+    ]
+    assert scheduler.compute_effective_start_times(events) == [9 * 3600, 9 * 3600 + 300]
+
+
+def test_compute_effective_start_times_unreachable_is_none():
+    events = [
+        Event(name="Unreachable", start_time=None, duration_seconds=600),
+        Event(name="Anchored", start_time=time(9, 0, 0), duration_seconds=600),
+    ]
+    assert scheduler.compute_effective_start_times(events) == [None, 9 * 3600]
