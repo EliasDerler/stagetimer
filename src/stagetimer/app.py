@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 
+from PySide6.QtGui import QFontDatabase
 from PySide6.QtWidgets import QApplication
 
 from stagetimer import config
@@ -12,8 +13,19 @@ from stagetimer.ui.main_display import MainDisplay
 from stagetimer.ui.shortcuts import register_main_display_shortcuts
 
 
+def _load_bundled_fonts() -> None:
+    """Register the bundled JetBrains Mono font files with Qt so the app
+    doesn't depend on any particular font being installed on the host OS —
+    the clock relies on this for predictable digit glyphs (see
+    config.FONT_FAMILY). Must run after the QApplication is constructed."""
+    for font_path in config.FONT_PATHS:
+        if font_path.exists():
+            QFontDatabase.addApplicationFont(str(font_path))
+
+
 def run(kiosk: bool = True) -> int:
     app = QApplication(sys.argv)
+    _load_bundled_fonts()
 
     timetable = persistence.load(config.TIMETABLE_PATH)
     engine = TimerEngine(timetable)

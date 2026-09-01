@@ -16,7 +16,7 @@ dev = [
 where = ["src"]
 
 [tool.setuptools.package-data]
-stagetimer = ["assets/*.png"]
+stagetimer = ["assets/*.png", "assets/fonts/*.ttf"]
 
 [build-system]
 requires = ["setuptools>=68"]

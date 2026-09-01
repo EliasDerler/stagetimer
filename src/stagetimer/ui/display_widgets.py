@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen, QPixmap
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import (
     QFrame,
     QGraphicsOpacityEffect,
@@ -23,6 +23,55 @@ def format_remaining(seconds: float) -> str:
     if hours > 0:
         return f"{hours:02d}:{minutes:02d}:{secs:02d}"
     return f"{minutes:02d}:{secs:02d}"
+
+
+def fit_clock_font_pixel_size(
+    text: str,
+    family: str,
+    bold: bool,
+    available_width: int,
+    available_height: int,
+    height_ratio: float = 0.65,
+    min_size: int = 10,
+    width_margin: float = 0.92,
+) -> int:
+    """Pick the pixel size for `text` (rendered in `family`/`bold`) that
+    fits within `available_width`, starting from a candidate derived only
+    from `available_height` (via `height_ratio`) and shrinking it if the
+    candidate turns out too wide.
+
+    ClockLabel originally sized its font from height alone, which is fine
+    for "MM:SS" (5 chars) but overflows the widget once the text grows to
+    "HH:MM:SS" (8 chars, e.g. once remaining time reaches 60 minutes) — so
+    this measures the actual rendered width via QFontMetrics and scales the
+    size down (proportionally, then corrected with a short verification
+    loop to absorb hinting/kerning non-linearity) until it fits within
+    `available_width * width_margin`. Pure function (no QWidget involved)
+    so the fitting math is directly unit-testable.
+    """
+    size = max(min_size, int(available_height * height_ratio))
+    if not text:
+        return size
+
+    target_width = max(1.0, available_width * width_margin)
+
+    font = QFont(family)
+    font.setBold(bold)
+    font.setPixelSize(size)
+    width = QFontMetrics(font).horizontalAdvance(text)
+
+    if width <= target_width:
+        return size
+
+    scaled = max(min_size, int(size * target_width / width))
+    font.setPixelSize(scaled)
+    width = QFontMetrics(font).horizontalAdvance(text)
+    while width > target_width and scaled > min_size:
+        scaled -= 1
+        font.setPixelSize(scaled)
+        width = QFontMetrics(font).horizontalAdvance(text)
+
+    return scaled
 
 
 class CurrentBox(QFrame):
@@ -142,9 +191,19 @@ class ClockLabel(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        font = QFont("Consolas")
+        pixel_size = fit_clock_font_pixel_size(
+            self._text, config.FONT_FAMILY, True, self.width(), self.height()
+        )
+        font = QFont(config.FONT_FAMILY)
         font.setBold(True)
-        font.setPixelSize(max(10, int(self.height() * 0.65)))
+        font.setPixelSize(pixel_size)
+        if hasattr(font, "setFeature"):
+            # JetBrains Mono's default zero has a dot (its way of telling 0
+            # apart from O); the "zero" OpenType feature switches it to a
+            # slashed zero instead, which is clearer at a glance on a
+            # countdown clock. setFeature was only added in Qt 6.7 — older
+            # PySide6 just keeps the (still clean, still unambiguous) dot.
+            font.setFeature(QFont.Tag.fromString("zero"), 1)
 
         path = QPainterPath()
         path.addText(0, 0, font, self._text)
