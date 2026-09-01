@@ -45,7 +45,7 @@ class MainDisplay(QWidget):
         self.next_bar = NextBar()
         self.mini_timetable = MiniTimetable()
         self.mini_timetable.setMinimumWidth(320)
-        self.mini_timetable.setMaximumHeight(140)
+        self.mini_timetable.setFixedHeight(140)
 
         top_right_column = QVBoxLayout()
         top_right_column.addWidget(self.realtime_clock)
@@ -60,7 +60,7 @@ class MainDisplay(QWidget):
         divider.setStyleSheet(styles.DIVIDER_QSS)
 
         bottom_row = QHBoxLayout()
-        bottom_row.addWidget(self.next_bar, 1)
+        bottom_row.addWidget(self.next_bar, 1, Qt.AlignmentFlag.AlignVCenter)
         bottom_row.addWidget(self.mini_timetable, 0)
 
         root = QVBoxLayout(self)
