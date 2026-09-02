@@ -338,8 +338,16 @@ class MiniTimetable(QListWidget):
         self.setFrameShape(QFrame.Shape.NoFrame)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setStyleSheet(styles.MINI_TIMETABLE_QSS)
+        self._rows: list[ScheduleRow] = []
 
     def set_rows(self, rows: list[ScheduleRow]) -> None:
+        if rows == self._rows:
+            # Called every 200ms tick from MainDisplay; skip the full
+            # clear+rebuild (and the accompanying scrollToItem) when nothing
+            # actually changed since the last tick, since ScheduleRow is a
+            # frozen, equality-comparable dataclass.
+            return
+        self._rows = rows
         self.clear()
         current_item: QListWidgetItem | None = None
         for row in rows:

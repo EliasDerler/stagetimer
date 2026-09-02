@@ -103,3 +103,28 @@ def test_mini_timetable_clears_previous_rows(qapp):
     widget.set_rows([ScheduleRow(name="B", duration_seconds=60, effective_start_seconds=0, is_current=False)])
     assert widget.count() == 1
     assert "B" in widget.item(0).text()
+
+
+def test_mini_timetable_skips_rebuild_when_rows_unchanged(qapp, monkeypatch):
+    rows = [ScheduleRow(name="Keynote", duration_seconds=1800, effective_start_seconds=9 * 3600, is_current=True)]
+    widget = MiniTimetable()
+    widget.set_rows(rows)
+
+    clear_calls = []
+    monkeypatch.setattr(widget, "clear", lambda: clear_calls.append(1))
+
+    widget.set_rows(list(rows))  # same content, different list object
+    assert clear_calls == []
+    assert widget.count() == 1  # untouched — the skipped call never cleared it
+
+
+def test_mini_timetable_rebuilds_when_rows_actually_differ(qapp, monkeypatch):
+    widget = MiniTimetable()
+    widget.set_rows([ScheduleRow(name="A", duration_seconds=60, effective_start_seconds=0, is_current=False)])
+
+    clear_calls = []
+    real_clear = widget.clear
+    monkeypatch.setattr(widget, "clear", lambda: (clear_calls.append(1), real_clear()))
+
+    widget.set_rows([ScheduleRow(name="B", duration_seconds=60, effective_start_seconds=0, is_current=False)])
+    assert clear_calls == [1]
