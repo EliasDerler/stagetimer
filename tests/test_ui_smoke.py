@@ -711,3 +711,60 @@ def test_main_display_hides_schedule_delay_when_empty(qapp):
     display._on_tick()
     assert display.schedule_delay.isVisible() is False
     display.close()
+
+
+def test_event_edit_dialog_shrinkable_and_floor_round_trip(qapp):
+    from stagetimer.ui.config_window import EventEditDialog
+
+    dialog = EventEditDialog()
+    dialog.name_edit.setText("Changeover")
+    dialog.shrinkable_checkbox.setChecked(True)
+    dialog.min_duration_minutes.setValue(2)
+    dialog._on_accept()
+    result = dialog.result_event()
+    assert result.shrinkable is True
+    assert result.min_duration_seconds == 120
+
+
+def test_event_edit_dialog_prefills_shrinkable_from_existing_event(qapp):
+    from stagetimer.ui.config_window import EventEditDialog
+
+    event = Event(
+        name="Changeover", start_time=None, duration_seconds=300,
+        shrinkable=True, min_duration_seconds=60,
+    )
+    dialog = EventEditDialog(event=event)
+    assert dialog.shrinkable_checkbox.isChecked() is True
+    assert dialog.min_duration_minutes.value() == 1
+
+
+def test_event_edit_dialog_floor_spinner_disabled_unless_shrinkable(qapp):
+    from stagetimer.ui.config_window import EventEditDialog
+
+    dialog = EventEditDialog()
+    assert dialog.min_duration_minutes.isEnabled() is False
+    dialog.shrinkable_checkbox.setChecked(True)
+    assert dialog.min_duration_minutes.isEnabled() is True
+    dialog.shrinkable_checkbox.setChecked(False)
+    assert dialog.min_duration_minutes.isEnabled() is False
+
+
+def test_event_edit_dialog_defaults_not_shrinkable(qapp):
+    from stagetimer.ui.config_window import EventEditDialog
+
+    dialog = EventEditDialog()
+    dialog.name_edit.setText("Keynote")
+    dialog._on_accept()
+    result = dialog.result_event()
+    assert result.shrinkable is False
+    assert result.min_duration_seconds == 0
+
+
+def test_config_window_reset_schedule_button_calls_engine(qapp, engine):
+    calls = []
+    engine.reset_schedule = lambda: calls.append(1)
+    timetable = Timetable(events=[Event(name="Keynote", start_time=None, duration_seconds=600)])
+    window = ConfigWindow(engine, timetable, lambda p: None)
+    window._reset_schedule_btn.click()
+    assert calls == [1]
+    window.close()

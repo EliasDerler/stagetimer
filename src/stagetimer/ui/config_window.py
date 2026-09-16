@@ -67,6 +67,16 @@ class EventEditDialog(QDialog):
         self.duration_minutes.setSuffix(" min")
         self.duration_minutes.setValue(total_minutes)
 
+        self.shrinkable_checkbox = QCheckBox("Shrinkable (can compress to absorb delay)")
+        self.shrinkable_checkbox.setChecked(event.shrinkable if event else False)
+
+        self.min_duration_minutes = QSpinBox()
+        self.min_duration_minutes.setRange(0, 24 * 60)
+        self.min_duration_minutes.setSuffix(" min")
+        self.min_duration_minutes.setValue((event.min_duration_seconds // 60) if event else 0)
+        self.min_duration_minutes.setEnabled(self.shrinkable_checkbox.isChecked())
+        self.shrinkable_checkbox.toggled.connect(self.min_duration_minutes.setEnabled)
+
         self.description_edit = QTextEdit()
         self.description_edit.setPlainText(event.description if event else "")
         self.description_edit.setFixedHeight(80)
@@ -75,6 +85,8 @@ class EventEditDialog(QDialog):
         form.addRow("Name:", self.name_edit)
         form.addRow("Start time:", start_row)
         form.addRow("Duration:", self.duration_minutes)
+        form.addRow("", self.shrinkable_checkbox)
+        form.addRow("Shrink floor:", self.min_duration_minutes)
         form.addRow("Description:", self.description_edit)
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
@@ -101,7 +113,14 @@ class EventEditDialog(QDialog):
         duration_seconds = self.duration_minutes.value() * 60
         description = self.description_edit.toPlainText().strip()
 
-        kwargs = dict(name=name, start_time=start_time, duration_seconds=duration_seconds, description=description)
+        kwargs = dict(
+            name=name,
+            start_time=start_time,
+            duration_seconds=duration_seconds,
+            description=description,
+            shrinkable=self.shrinkable_checkbox.isChecked(),
+            min_duration_seconds=self.min_duration_minutes.value() * 60,
+        )
         if self._original_id:
             self._result_event = Event(id=self._original_id, **kwargs)
         else:
@@ -190,6 +209,7 @@ class ConfigWindow(QWidget):
         next_btn = QPushButton("Skip Next »")
         minus_btn = QPushButton("-1 min")
         plus_btn = QPushButton("+1 min")
+        self._reset_schedule_btn = QPushButton("Reset Schedule")
         # start()/skip_next()/skip_prev() take an optional `now` kwarg (for
         # deterministic tests) — connecting them directly as Qt slots would
         # let clicked's `checked: bool` argument leak into that parameter
@@ -202,9 +222,13 @@ class ConfigWindow(QWidget):
         next_btn.clicked.connect(lambda: self.engine.skip_next())
         minus_btn.clicked.connect(lambda: self.engine.adjust(-60))
         plus_btn.clicked.connect(lambda: self.engine.adjust(60))
+        # reset_schedule() takes no parameters at all, so a bare method
+        # reference is safe here — unlike the lambdas above, there's no
+        # optional-arg slot for clicked's stray `checked: bool` to corrupt.
+        self._reset_schedule_btn.clicked.connect(self.engine.reset_schedule)
 
         controls_row = QHBoxLayout()
-        for btn in (start_btn, prev_btn, pause_btn, resume_btn, next_btn, minus_btn, plus_btn):
+        for btn in (start_btn, prev_btn, pause_btn, resume_btn, next_btn, minus_btn, plus_btn, self._reset_schedule_btn):
             controls_row.addWidget(btn)
 
         self._start_btn = start_btn
