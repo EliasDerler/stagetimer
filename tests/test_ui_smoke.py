@@ -251,6 +251,14 @@ def test_event_edit_dialog_prefills_description_from_existing_event(qapp):
     assert dialog.description_edit.toPlainText() == "Existing notes"
 
 
+def test_event_edit_dialog_description_with_special_characters_is_not_html_mangled(qapp):
+    from stagetimer.ui.config_window import EventEditDialog
+
+    event = Event(name="Keynote", start_time=time(9, 0), duration_seconds=600, description="Q&A <live demo> session")
+    dialog = EventEditDialog(event=event)
+    assert dialog.description_edit.toPlainText() == "Q&A <live demo> session"
+
+
 def test_config_window_copy_paste_duplicates_selected_event(qapp, engine):
     timetable = Timetable(
         events=[

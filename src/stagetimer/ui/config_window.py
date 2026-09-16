@@ -64,7 +64,8 @@ class EventEditDialog(QDialog):
         self.duration_minutes.setSuffix(" min")
         self.duration_minutes.setValue(total_minutes)
 
-        self.description_edit = QTextEdit(event.description if event else "")
+        self.description_edit = QTextEdit()
+        self.description_edit.setPlainText(event.description if event else "")
         self.description_edit.setFixedHeight(80)
 
         form = QFormLayout()
