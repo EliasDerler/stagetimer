@@ -230,3 +230,68 @@ def test_event_table_model_insert_event_at_specific_position(qapp):
     )
     model.insert_event(1, Event(name="B", start_time=time(9, 5), duration_seconds=60))
     assert [e.name for e in model.events()] == ["A", "B", "C"]
+
+
+def test_event_edit_dialog_description_field_round_trips(qapp):
+    from stagetimer.ui.config_window import EventEditDialog
+
+    dialog = EventEditDialog()
+    dialog.name_edit.setText("Keynote")
+    dialog.description_edit.setPlainText("Opening remarks\nand welcome")
+    dialog._on_accept()
+    result = dialog.result_event()
+    assert result.description == "Opening remarks\nand welcome"
+
+
+def test_event_edit_dialog_prefills_description_from_existing_event(qapp):
+    from stagetimer.ui.config_window import EventEditDialog
+
+    event = Event(name="Keynote", start_time=time(9, 0), duration_seconds=600, description="Existing notes")
+    dialog = EventEditDialog(event=event)
+    assert dialog.description_edit.toPlainText() == "Existing notes"
+
+
+def test_config_window_copy_paste_duplicates_selected_event(qapp, engine):
+    timetable = Timetable(
+        events=[
+            Event(name="Keynote", start_time=time(9, 0), duration_seconds=600, description="Notes"),
+            Event(name="Panel", start_time=time(9, 30), duration_seconds=600),
+        ]
+    )
+    engine.set_timetable(timetable)
+    window = ConfigWindow(engine, timetable, on_logo_changed=lambda p: None)
+
+    window.table.selectRow(0)
+    window._copy_selected()
+    window._paste_event()
+
+    events = window.model.events()
+    assert [e.name for e in events] == ["Keynote", "Keynote", "Panel"]
+    assert events[1].description == "Notes"
+    assert events[1].id != events[0].id
+    assert events[1].start_time == events[0].start_time
+    window.close()
+
+
+def test_config_window_paste_without_copy_is_noop(qapp, engine):
+    timetable = Timetable(events=[Event(name="Keynote", start_time=time(9, 0), duration_seconds=600)])
+    engine.set_timetable(timetable)
+    window = ConfigWindow(engine, timetable, on_logo_changed=lambda p: None)
+
+    window._paste_event()
+    assert len(window.model.events()) == 1
+    window.close()
+
+
+def test_config_window_repeated_paste_stacks_copies(qapp, engine):
+    timetable = Timetable(events=[Event(name="Changeover", start_time=None, duration_seconds=300)])
+    engine.set_timetable(timetable)
+    window = ConfigWindow(engine, timetable, on_logo_changed=lambda p: None)
+
+    window.table.selectRow(0)
+    window._copy_selected()
+    window._paste_event()
+    window._paste_event()
+
+    assert [e.name for e in window.model.events()] == ["Changeover", "Changeover", "Changeover"]
+    window.close()

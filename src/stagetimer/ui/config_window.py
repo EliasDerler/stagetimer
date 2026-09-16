@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import dataclasses
 import shutil
+import uuid
 from datetime import time
 from typing import Callable
 
@@ -21,6 +23,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QSpinBox,
     QTableView,
+    QTextEdit,
     QTimeEdit,
     QVBoxLayout,
     QWidget,
@@ -61,10 +64,14 @@ class EventEditDialog(QDialog):
         self.duration_minutes.setSuffix(" min")
         self.duration_minutes.setValue(total_minutes)
 
+        self.description_edit = QTextEdit(event.description if event else "")
+        self.description_edit.setFixedHeight(80)
+
         form = QFormLayout()
         form.addRow("Name:", self.name_edit)
         form.addRow("Start time:", start_row)
         form.addRow("Duration:", self.duration_minutes)
+        form.addRow("Description:", self.description_edit)
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self._on_accept)
@@ -88,8 +95,9 @@ class EventEditDialog(QDialog):
         else:
             start_time = None
         duration_seconds = self.duration_minutes.value() * 60
+        description = self.description_edit.toPlainText().strip()
 
-        kwargs = dict(name=name, start_time=start_time, duration_seconds=duration_seconds)
+        kwargs = dict(name=name, start_time=start_time, duration_seconds=duration_seconds, description=description)
         if self._original_id:
             self._result_event = Event(id=self._original_id, **kwargs)
         else:
@@ -118,6 +126,7 @@ class ConfigWindow(QWidget):
         self.engine = engine
         self._logo_path = timetable.logo_path
         self._on_logo_changed = on_logo_changed
+        self._clipboard_event: Event | None = None
         self.model = EventTableModel(timetable.sorted_events())
 
         self.table = QTableView()
@@ -131,14 +140,18 @@ class ConfigWindow(QWidget):
         add_btn = QPushButton("Add")
         edit_btn = QPushButton("Edit")
         delete_btn = QPushButton("Delete")
+        copy_btn = QPushButton("Copy")
+        paste_btn = QPushButton("Paste")
         up_btn = QPushButton("Move Up")
         down_btn = QPushButton("Move Down")
         add_btn.clicked.connect(self._add_event)
         edit_btn.clicked.connect(self._edit_selected)
         delete_btn.clicked.connect(self._delete_selected)
+        copy_btn.clicked.connect(self._copy_selected)
+        paste_btn.clicked.connect(self._paste_event)
         up_btn.clicked.connect(lambda: self._move_selected(-1))
         down_btn.clicked.connect(lambda: self._move_selected(1))
-        for btn in (add_btn, edit_btn, delete_btn, up_btn, down_btn):
+        for btn in (add_btn, edit_btn, delete_btn, copy_btn, paste_btn, up_btn, down_btn):
             table_buttons.addWidget(btn)
         table_buttons.addStretch(1)
 
@@ -189,6 +202,8 @@ class ConfigWindow(QWidget):
         root.addWidget(controls_box)
 
         QShortcut(QKeySequence("Escape"), self, activated=self.close)
+        QShortcut(QKeySequence("Ctrl+C"), self, activated=self._copy_selected)
+        QShortcut(QKeySequence("Ctrl+V"), self, activated=self._paste_event)
 
         # ConfigWindow and MainDisplay share one TimerEngine but each owns its
         # own polling loop (there's no engine-change signal) — this timer
@@ -229,6 +244,21 @@ class ConfigWindow(QWidget):
         if row is None:
             return
         self.model.remove_row(row)
+        self._persist_and_apply()
+
+    def _copy_selected(self) -> None:
+        row = self._selected_row()
+        if row is None:
+            return
+        self._clipboard_event = self.model.event_at(row)
+
+    def _paste_event(self) -> None:
+        if self._clipboard_event is None:
+            return
+        duplicate = dataclasses.replace(self._clipboard_event, id=str(uuid.uuid4()))
+        row = self._selected_row()
+        insert_at = (row + 1) if row is not None else len(self.model.events())
+        self.model.insert_event(insert_at, duplicate)
         self._persist_and_apply()
 
     def _move_selected(self, direction: int) -> None:
