@@ -292,7 +292,12 @@ def test_config_window_paste_without_copy_is_noop(qapp, engine):
 
 
 def test_config_window_repeated_paste_stacks_copies(qapp, engine):
-    timetable = Timetable(events=[Event(name="Changeover", start_time=None, duration_seconds=300)])
+    timetable = Timetable(
+        events=[
+            Event(name="Changeover", start_time=None, duration_seconds=300),
+            Event(name="Closing", start_time=None, duration_seconds=600),
+        ]
+    )
     engine.set_timetable(timetable)
     window = ConfigWindow(engine, timetable, on_logo_changed=lambda p: None)
 
@@ -301,5 +306,6 @@ def test_config_window_repeated_paste_stacks_copies(qapp, engine):
     window._paste_event()
     window._paste_event()
 
-    assert [e.name for e in window.model.events()] == ["Changeover", "Changeover", "Changeover"]
+    names = [e.name for e in window.model.events()]
+    assert names == ["Changeover", "Changeover", "Changeover", "Closing"]
     window.close()

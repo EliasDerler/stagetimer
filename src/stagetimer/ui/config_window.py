@@ -260,6 +260,7 @@ class ConfigWindow(QWidget):
         row = self._selected_row()
         insert_at = (row + 1) if row is not None else len(self.model.events())
         self.model.insert_event(insert_at, duplicate)
+        self.table.selectRow(insert_at)
         self._persist_and_apply()
 
     def _move_selected(self, direction: int) -> None:
