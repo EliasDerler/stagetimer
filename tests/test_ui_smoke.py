@@ -157,22 +157,30 @@ def test_config_window_start_button_enabled_state(qapp, engine):
     window.close()
 
 
-def test_config_window_add_event_persists_to_engine(qapp, engine, tmp_path, monkeypatch):
-    from stagetimer import config as st_config
+def test_config_window_add_event_persists_to_engine(qapp, engine, tmp_path):
+    # Note: this test predates the multi-day rework and originally asserted
+    # persistence to the legacy single-file config.TIMETABLE_PATH via
+    # persistence.save(). _persist_and_apply now saves through day_store
+    # instead (see the new Day-menu tests below), so this test is updated to
+    # construct the window against an isolated tmp_path day rather than
+    # continuing to assert on the now-unused legacy path.
+    from stagetimer.core import day_store
 
-    monkeypatch.setattr(st_config, "TIMETABLE_PATH", tmp_path / "timetable.json")
-    monkeypatch.setattr(st_config, "DATA_DIR", tmp_path)
-
+    days_dir = tmp_path / "days"
+    active_day_path = tmp_path / "active_day.json"
     timetable = Timetable(events=[])
+    day_a = day_store.create_day(days_dir, "Friday", timetable)
     engine.set_timetable(timetable)
-    window = ConfigWindow(engine, timetable, on_logo_changed=lambda p: None)
+    window = ConfigWindow(
+        engine, timetable, lambda p: None, day_a, lambda d: None, days_dir=days_dir, active_day_path=active_day_path
+    )
 
     new_event = Event(name="Added", start_time=time(10, 0), duration_seconds=600)
     window.model.add_event(new_event)
     window._persist_and_apply()
 
     assert any(e.name == "Added" for e in engine.timetable.events)
-    assert (tmp_path / "timetable.json").exists()
+    assert any(e.name == "Added" for e in day_store.load_day(days_dir, day_a).events)
     window.close()
 
 
@@ -308,6 +316,262 @@ def test_config_window_repeated_paste_stacks_copies(qapp, engine):
 
     names = [e.name for e in window.model.events()]
     assert names == ["Changeover", "Changeover", "Changeover", "Closing"]
+    window.close()
+
+
+def test_config_window_day_menu_lists_and_checks_active_day(qapp, engine, tmp_path):
+    from stagetimer.core import day_store
+
+    days_dir = tmp_path / "days"
+    active_day_path = tmp_path / "active_day.json"
+    timetable = Timetable(events=[Event(name="Keynote", start_time=None, duration_seconds=600)])
+    day_a = day_store.create_day(days_dir, "Friday", timetable)
+    day_store.create_day(days_dir, "Saturday")
+
+    window = ConfigWindow(
+        engine, timetable, lambda p: None, day_a, lambda d: None, days_dir=days_dir, active_day_path=active_day_path
+    )
+    window._refresh_day_menu()
+    checkable_actions = [a for a in window._day_menu.actions() if a.isCheckable()]
+    names = {a.text() for a in checkable_actions}
+    assert names == {"Friday", "Saturday"}
+    checked = [a.text() for a in checkable_actions if a.isChecked()]
+    assert checked == ["Friday"]
+    assert window.windowTitle().endswith("Friday")
+    window.close()
+
+
+def test_config_window_switch_day_updates_model_and_engine(qapp, engine, tmp_path):
+    from stagetimer.core import day_store
+
+    days_dir = tmp_path / "days"
+    active_day_path = tmp_path / "active_day.json"
+    timetable_a = Timetable(events=[Event(name="Keynote", start_time=None, duration_seconds=600)])
+    timetable_b = Timetable(events=[Event(name="Panel", start_time=None, duration_seconds=600)])
+    day_a = day_store.create_day(days_dir, "Friday", timetable_a)
+    day_b = day_store.create_day(days_dir, "Saturday", timetable_b)
+    engine.set_timetable(timetable_a)
+
+    window = ConfigWindow(
+        engine, timetable_a, lambda p: None, day_a, lambda d: None, days_dir=days_dir, active_day_path=active_day_path
+    )
+    window._switch_to_day(day_b)
+
+    assert [e.name for e in window.model.events()] == ["Panel"]
+    assert [e.name for e in engine.timetable.events] == ["Panel"]
+    assert window._active_day_id == day_b
+    assert day_store.get_active_day_id(active_day_path) == day_b
+    window.close()
+
+
+def test_config_window_switch_to_same_day_is_noop(qapp, engine, tmp_path):
+    from stagetimer.core import day_store
+
+    days_dir = tmp_path / "days"
+    active_day_path = tmp_path / "active_day.json"
+    timetable = Timetable(events=[Event(name="Keynote", start_time=None, duration_seconds=600)])
+    day_a = day_store.create_day(days_dir, "Friday", timetable)
+
+    window = ConfigWindow(
+        engine, timetable, lambda p: None, day_a, lambda d: None, days_dir=days_dir, active_day_path=active_day_path
+    )
+    window._switch_to_day(day_a)
+    assert window._active_day_id == day_a
+    window.close()
+
+
+def test_config_window_switch_while_running_requires_confirmation(qapp, engine, monkeypatch, tmp_path):
+    from stagetimer.core import day_store
+    from stagetimer.ui.config_window import QMessageBox
+
+    days_dir = tmp_path / "days"
+    active_day_path = tmp_path / "active_day.json"
+    timetable_a = Timetable(events=[Event(name="Keynote", start_time=None, duration_seconds=600)])
+    timetable_b = Timetable(events=[Event(name="Panel", start_time=None, duration_seconds=600)])
+    day_a = day_store.create_day(days_dir, "Friday", timetable_a)
+    day_b = day_store.create_day(days_dir, "Saturday", timetable_b)
+    engine.set_timetable(timetable_a)
+    engine.start()
+
+    window = ConfigWindow(
+        engine, timetable_a, lambda p: None, day_a, lambda d: None, days_dir=days_dir, active_day_path=active_day_path
+    )
+
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.No)
+    window._switch_to_day(day_b)
+    assert window._active_day_id == day_a  # declined, stayed put
+
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.Yes)
+    window._switch_to_day(day_b)
+    assert window._active_day_id == day_b  # confirmed, switched
+
+    window.close()
+
+
+def test_config_window_new_day_empty(qapp, engine, monkeypatch, tmp_path):
+    from PySide6.QtWidgets import QMessageBox as RealQMessageBox
+
+    from stagetimer.core import day_store
+    from stagetimer.ui.config_window import QInputDialog
+
+    days_dir = tmp_path / "days"
+    active_day_path = tmp_path / "active_day.json"
+    timetable = Timetable(events=[Event(name="Keynote", start_time=None, duration_seconds=600)])
+    day_a = day_store.create_day(days_dir, "Friday", timetable)
+
+    window = ConfigWindow(
+        engine, timetable, lambda p: None, day_a, lambda d: None, days_dir=days_dir, active_day_path=active_day_path
+    )
+
+    monkeypatch.setattr(QInputDialog, "getText", lambda *a, **k: ("Saturday", True))
+
+    class FakeMsg:
+        ButtonRole = RealQMessageBox.ButtonRole
+
+        def __init__(self, *a, **k):
+            pass
+
+        def setWindowTitle(self, *a):
+            pass
+
+        def setText(self, *a):
+            pass
+
+        def addButton(self, label, role):
+            return label
+
+        def exec(self):
+            pass
+
+        def clickedButton(self):
+            return "Empty"
+
+    monkeypatch.setattr("stagetimer.ui.config_window.QMessageBox", FakeMsg)
+    window._new_day()
+
+    assert window._active_day_name == "Saturday"
+    assert window.model.events() == []
+    window.close()
+
+
+def test_config_window_new_day_duplicate(qapp, engine, monkeypatch, tmp_path):
+    from PySide6.QtWidgets import QMessageBox as RealQMessageBox
+
+    from stagetimer.core import day_store
+    from stagetimer.ui.config_window import QInputDialog
+
+    days_dir = tmp_path / "days"
+    active_day_path = tmp_path / "active_day.json"
+    timetable = Timetable(events=[Event(name="Keynote", start_time=None, duration_seconds=600)])
+    day_a = day_store.create_day(days_dir, "Friday", timetable)
+
+    window = ConfigWindow(
+        engine, timetable, lambda p: None, day_a, lambda d: None, days_dir=days_dir, active_day_path=active_day_path
+    )
+
+    monkeypatch.setattr(QInputDialog, "getText", lambda *a, **k: ("Saturday", True))
+
+    class FakeMsg:
+        ButtonRole = RealQMessageBox.ButtonRole
+
+        def __init__(self, *a, **k):
+            pass
+
+        def setWindowTitle(self, *a):
+            pass
+
+        def setText(self, *a):
+            pass
+
+        def addButton(self, label, role):
+            return label
+
+        def exec(self):
+            pass
+
+        def clickedButton(self):
+            return "Duplicate"
+
+    monkeypatch.setattr("stagetimer.ui.config_window.QMessageBox", FakeMsg)
+    window._new_day()
+
+    assert window._active_day_name == "Saturday"
+    assert [e.name for e in window.model.events()] == ["Keynote"]
+
+    # Editing the original day afterward must not affect the duplicate already
+    # sitting in this window's model/engine — they were copied, not shared.
+    day_store.save_day(
+        days_dir, day_a, "Friday", Timetable(events=[Event(name="Changed", start_time=None, duration_seconds=600)])
+    )
+    assert [e.name for e in day_store.load_day(days_dir, day_a).events] == ["Changed"]
+    assert [e.name for e in window.model.events()] == ["Keynote"]
+    window.close()
+
+
+def test_config_window_delete_day_falls_back_to_another_day(qapp, engine, monkeypatch, tmp_path):
+    from stagetimer.core import day_store
+    from stagetimer.ui.config_window import QMessageBox
+
+    days_dir = tmp_path / "days"
+    active_day_path = tmp_path / "active_day.json"
+    timetable_a = Timetable(events=[Event(name="Keynote", start_time=None, duration_seconds=600)])
+    timetable_b = Timetable(events=[Event(name="Panel", start_time=None, duration_seconds=600)])
+    day_a = day_store.create_day(days_dir, "Friday", timetable_a)
+    day_b = day_store.create_day(days_dir, "Saturday", timetable_b)
+
+    window = ConfigWindow(
+        engine, timetable_a, lambda p: None, day_a, lambda d: None, days_dir=days_dir, active_day_path=active_day_path
+    )
+
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.Yes)
+    window._delete_current_day()
+
+    assert window._active_day_id == day_b
+    assert [e.name for e in window.model.events()] == ["Panel"]
+    assert [d.id for d in day_store.list_days(days_dir)] == [day_b]
+    window.close()
+
+
+def test_config_window_delete_last_day_leaves_empty_state(qapp, engine, monkeypatch, tmp_path):
+    from stagetimer.core import day_store
+    from stagetimer.ui.config_window import QMessageBox
+
+    days_dir = tmp_path / "days"
+    active_day_path = tmp_path / "active_day.json"
+    timetable = Timetable(events=[Event(name="Keynote", start_time=None, duration_seconds=600)])
+    day_a = day_store.create_day(days_dir, "Friday", timetable)
+
+    window = ConfigWindow(
+        engine, timetable, lambda p: None, day_a, lambda d: None, days_dir=days_dir, active_day_path=active_day_path
+    )
+
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.Yes)
+    window._delete_current_day()
+
+    assert window._active_day_id is None
+    assert window.model.events() == []
+    assert day_store.get_active_day_id(active_day_path) is None
+    assert day_store.list_days(days_dir) == []
+    assert window.windowTitle().endswith("No day loaded")
+    window.close()
+
+
+def test_config_window_persist_and_apply_saves_through_day_store(qapp, engine, tmp_path):
+    from stagetimer.core import day_store
+
+    days_dir = tmp_path / "days"
+    active_day_path = tmp_path / "active_day.json"
+    timetable = Timetable(events=[Event(name="Keynote", start_time=None, duration_seconds=600)])
+    day_a = day_store.create_day(days_dir, "Friday", timetable)
+
+    window = ConfigWindow(
+        engine, timetable, lambda p: None, day_a, lambda d: None, days_dir=days_dir, active_day_path=active_day_path
+    )
+    window.model.add_event(Event(name="Panel", start_time=None, duration_seconds=600))
+    window._persist_and_apply()
+
+    reloaded = day_store.load_day(days_dir, day_a)
+    assert [e.name for e in reloaded.events] == ["Keynote", "Panel"]
     window.close()
 
 

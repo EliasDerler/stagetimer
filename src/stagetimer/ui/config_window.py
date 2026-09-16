@@ -4,10 +4,11 @@ import dataclasses
 import shutil
 import uuid
 from datetime import time
+from pathlib import Path
 from typing import Callable
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QShortcut, QKeySequence
+from PySide6.QtGui import QAction, QShortcut, QKeySequence
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -17,8 +18,10 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QLineEdit,
+    QMenuBar,
     QMessageBox,
     QPushButton,
     QSpinBox,
@@ -30,7 +33,7 @@ from PySide6.QtWidgets import (
 )
 
 from stagetimer import config
-from stagetimer.core import persistence
+from stagetimer.core import day_store
 from stagetimer.core.models import Event, Timetable
 from stagetimer.core.state_machine import Mode, TimerEngine
 from stagetimer.ui.event_table_model import EventTableModel
@@ -116,17 +119,25 @@ class ConfigWindow(QWidget):
         self,
         engine: TimerEngine,
         timetable: Timetable,
-        on_logo_changed: Callable[[str], None],
+        on_logo_changed: Callable[[str | None], None],
+        active_day_id: str | None = None,
+        on_day_changed: Callable[[str | None], None] = lambda day_id: None,
+        days_dir: Path = config.DAYS_DIR,
+        active_day_path: Path = config.ACTIVE_DAY_PATH,
         parent: QWidget | None = None,
     ):
         super().__init__(parent)
-        self.setWindowTitle("StageTimer — Configuration")
         self.resize(720, 560)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
 
         self.engine = engine
         self._logo_path = timetable.logo_path
         self._on_logo_changed = on_logo_changed
+        self._active_day_id = active_day_id
+        self._active_day_name = "No day loaded"
+        self._on_day_changed = on_day_changed
+        self._days_dir = days_dir
+        self._active_day_path = active_day_path
         self._clipboard_event: Event | None = None
         self.model = EventTableModel(timetable.sorted_events())
 
@@ -202,6 +213,11 @@ class ConfigWindow(QWidget):
         root.addWidget(logo_box)
         root.addWidget(controls_box)
 
+        menu_bar = QMenuBar(self)
+        self._day_menu = menu_bar.addMenu("Day")
+        self._day_menu.aboutToShow.connect(self._refresh_day_menu)
+        root.setMenuBar(menu_bar)
+
         QShortcut(QKeySequence("Escape"), self, activated=self.close)
         QShortcut(QKeySequence("Ctrl+C"), self, activated=self._copy_selected)
         QShortcut(QKeySequence("Ctrl+V"), self, activated=self._paste_event)
@@ -214,6 +230,7 @@ class ConfigWindow(QWidget):
         self._start_refresh_timer.timeout.connect(self._refresh_start_button)
         self._start_refresh_timer.start()
         self._refresh_start_button()
+        self._refresh_day_menu()
 
     # -- timetable editing -----------------------------------------------------
 
@@ -224,6 +241,116 @@ class ConfigWindow(QWidget):
     def _refresh_start_button(self) -> None:
         mode = self.engine.get_display_state().mode
         self._start_btn.setEnabled(mode in (Mode.EMPTY, Mode.AWAITING_START, Mode.AFTER_LAST))
+
+    # -- day menu ---------------------------------------------------------------
+
+    def _refresh_day_menu(self) -> None:
+        self._day_menu.clear()
+        days = day_store.list_days(self._days_dir)
+        self._active_day_name = next((d.name for d in days if d.id == self._active_day_id), "No day loaded")
+        self.setWindowTitle(f"StageTimer — Configuration — {self._active_day_name}")
+        for day in days:
+            action = QAction(day.name, self)
+            action.setCheckable(True)
+            action.setChecked(day.id == self._active_day_id)
+            action.triggered.connect(lambda checked=False, day_id=day.id: self._switch_to_day(day_id))
+            self._day_menu.addAction(action)
+        self._day_menu.addSeparator()
+        new_action = QAction("New Day...", self)
+        new_action.triggered.connect(self._new_day)
+        self._day_menu.addAction(new_action)
+        rename_action = QAction("Rename Current Day...", self)
+        rename_action.triggered.connect(self._rename_current_day)
+        rename_action.setEnabled(self._active_day_id is not None)
+        self._day_menu.addAction(rename_action)
+        delete_action = QAction("Delete Current Day...", self)
+        delete_action.triggered.connect(self._delete_current_day)
+        delete_action.setEnabled(self._active_day_id is not None)
+        self._day_menu.addAction(delete_action)
+
+    def _switch_to_day(self, day_id: str) -> None:
+        if day_id == self._active_day_id:
+            return
+        if self.engine.get_display_state().mode in (Mode.RUNNING, Mode.PAUSED):
+            day_name = next((d.name for d in day_store.list_days(self._days_dir) if d.id == day_id), "")
+            reply = QMessageBox.question(
+                self,
+                "Switch day?",
+                f"Switch to '{day_name}'? This will stop the current timer.",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+        timetable = day_store.load_day(self._days_dir, day_id)
+        self._active_day_id = day_id
+        self._logo_path = timetable.logo_path
+        self.model.set_events(timetable.sorted_events())
+        self.engine.set_timetable(timetable)
+        self.logo_label.setText(self._logo_path or "No logo selected")
+        self._on_logo_changed(self._logo_path)
+        day_store.set_active_day_id(self._active_day_path, day_id)
+        self._on_day_changed(day_id)
+        self._refresh_day_menu()
+
+    def _new_day(self) -> None:
+        name, ok = QInputDialog.getText(self, "New Day", "Day name:")
+        name = name.strip()
+        if not ok or not name:
+            return
+
+        msg = QMessageBox(self)
+        msg.setWindowTitle("New Day")
+        msg.setText(f"Start '{name}' empty, or duplicate events from '{self._active_day_name}'?")
+        empty_btn = msg.addButton("Empty", QMessageBox.ButtonRole.NoRole)
+        msg.addButton("Duplicate", QMessageBox.ButtonRole.YesRole)
+        msg.exec()
+
+        if msg.clickedButton() is empty_btn:
+            new_timetable = Timetable()
+        else:
+            new_timetable = Timetable(events=list(self.model.events()), logo_path=self._logo_path)
+
+        new_id = day_store.create_day(self._days_dir, name, new_timetable)
+        self._switch_to_day(new_id)
+
+    def _rename_current_day(self) -> None:
+        if self._active_day_id is None:
+            return
+        name, ok = QInputDialog.getText(self, "Rename Day", "Day name:", text=self._active_day_name)
+        name = name.strip()
+        if not ok or not name:
+            return
+        day_store.rename_day(self._days_dir, self._active_day_id, name)
+        self._refresh_day_menu()
+
+    def _delete_current_day(self) -> None:
+        if self._active_day_id is None:
+            return
+        reply = QMessageBox.question(
+            self,
+            "Delete Day",
+            f"Delete '{self._active_day_name}'? This cannot be undone.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        day_store.delete_day(self._days_dir, self._active_day_id)
+        remaining = day_store.list_days(self._days_dir)
+        if remaining:
+            fallback = max(remaining, key=lambda d: d.modified_at)
+            self._switch_to_day(fallback.id)
+        else:
+            self._active_day_id = None
+            self._logo_path = None
+            self.model.set_events([])
+            self.engine.set_timetable(Timetable())
+            self.logo_label.setText("No logo selected")
+            self._on_logo_changed(None)
+            day_store.clear_active_day(self._active_day_path)
+            self._on_day_changed(None)
+            self._refresh_day_menu()
 
     def _add_event(self) -> None:
         dialog = EventEditDialog(parent=self)
@@ -285,6 +412,8 @@ class ConfigWindow(QWidget):
         self._persist_and_apply()
 
     def _persist_and_apply(self) -> None:
+        if self._active_day_id is None:
+            return
         timetable = Timetable(events=self.model.events(), logo_path=self._logo_path)
-        persistence.save(config.TIMETABLE_PATH, timetable)
+        day_store.save_day(self._days_dir, self._active_day_id, self._active_day_name, timetable)
         self.engine.set_timetable(timetable)
