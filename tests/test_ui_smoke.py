@@ -691,7 +691,7 @@ def test_main_display_shows_schedule_delay_readout(qapp):
     # own setVisible() call — without showing the top-level display first,
     # schedule_delay.isVisible() reads False regardless of wiring
     # correctness (see other tests in this file that call display.show()
-    # for the same reason, e.g. test_pause_shortcut_toggles_engine).
+    # for the same reason, e.g. test_space_keypress_advances_to_next_event).
     display.show()
     display._on_tick()
     assert display.schedule_delay.isVisible() is True
@@ -706,7 +706,7 @@ def test_main_display_hides_schedule_delay_when_empty(qapp):
     # own setVisible() call — without showing the top-level display first,
     # schedule_delay.isVisible() reads False regardless of wiring
     # correctness (see other tests in this file that call display.show()
-    # for the same reason, e.g. test_pause_shortcut_toggles_engine).
+    # for the same reason, e.g. test_space_keypress_advances_to_next_event).
     display.show()
     display._on_tick()
     assert display.schedule_delay.isVisible() is False
