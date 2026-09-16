@@ -77,3 +77,36 @@ def test_save_is_atomic_no_leftover_tmp_file(tmp_path: Path):
 
     assert path.exists()
     assert not (tmp_path / "timetable.json.tmp").exists()
+
+
+def test_save_then_load_roundtrip_with_description(tmp_path: Path):
+    path = tmp_path / "timetable.json"
+    original = Timetable(
+        events=[
+            Event(
+                name="Keynote",
+                start_time=time(9, 0, 0),
+                duration_seconds=1800,
+                description="Opening remarks\nand welcome",
+            )
+        ],
+    )
+
+    persistence.save(path, original)
+    loaded = persistence.load(path)
+
+    assert loaded.events[0].description == "Opening remarks\nand welcome"
+
+
+def test_load_missing_description_defaults_to_empty_string(tmp_path: Path):
+    path = tmp_path / "timetable.json"
+    path.write_text(
+        '{"version": 1, "logo_path": null, "events": ['
+        '{"id": "x", "name": "Legacy", "start_time": null, "duration_seconds": 60}'
+        ']}',
+        encoding="utf-8",
+    )
+
+    loaded = persistence.load(path)
+
+    assert loaded.events[0].description == ""

@@ -11,6 +11,7 @@ class Event:
     start_time: time | None
     duration_seconds: int
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    description: str = ""
 
     def to_dict(self) -> dict:
         return {
@@ -18,6 +19,7 @@ class Event:
             "name": self.name,
             "start_time": self.start_time.strftime("%H:%M:%S") if self.start_time else None,
             "duration_seconds": self.duration_seconds,
+            "description": self.description,
         }
 
     @classmethod
@@ -33,6 +35,7 @@ class Event:
             name=data["name"],
             start_time=start_time,
             duration_seconds=int(data["duration_seconds"]),
+            description=data.get("description", ""),
         )
 
 
