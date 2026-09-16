@@ -14,6 +14,8 @@ from stagetimer.ui.display_widgets import (
     LogoBox,
     MiniTimetable,
     NextBar,
+    ScheduleDelayLabel,
+    format_overtime,
     format_remaining,
 )
 
@@ -43,6 +45,7 @@ class MainDisplay(QWidget):
         self.clock_area = ClockArea()
         self.clock = self.clock_area.clock
         self.next_bar = NextBar()
+        self.schedule_delay = ScheduleDelayLabel()
         self.mini_timetable = MiniTimetable()
         self.mini_timetable.setMinimumWidth(320)
         self.mini_timetable.setFixedHeight(140)
@@ -66,6 +69,7 @@ class MainDisplay(QWidget):
         root = QVBoxLayout(self)
         root.addLayout(top_row)
         root.addWidget(self.clock_area, 1)
+        root.addWidget(self.schedule_delay)
         root.addWidget(divider)
         root.addLayout(bottom_row)
 
@@ -108,7 +112,7 @@ class MainDisplay(QWidget):
         elif state.mode == Mode.BEFORE_FIRST:
             self.current_box.set_name(STANDBY_TEXT)
             self.current_box.set_description(None)
-            self.clock.set_time_and_state(format_remaining(state.remaining_seconds), ColorState.NORMAL)
+            self.clock.set_time_and_state(format_overtime(state.remaining_seconds), state.color_state)
             self.next_bar.set_next(state.next_name, state.next_duration_seconds, state.next_description)
         elif state.mode == Mode.AFTER_LAST:
             self.current_box.set_name(DAY_COMPLETE_TEXT)
@@ -118,8 +122,9 @@ class MainDisplay(QWidget):
         else:  # RUNNING or PAUSED
             self.current_box.set_name(state.current_name)
             self.current_box.set_description(state.current_description)
-            self.clock.set_time_and_state(format_remaining(state.remaining_seconds), state.color_state)
+            self.clock.set_time_and_state(format_overtime(state.remaining_seconds), state.color_state)
             self.next_bar.set_next(state.next_name, state.next_duration_seconds, state.next_description)
 
+        self.schedule_delay.set_delay_seconds(state.schedule_delay_seconds)
         self.realtime_clock.setText(datetime.now().strftime("%H:%M:%S"))
         self.mini_timetable.set_rows(self.engine.get_schedule_overview())

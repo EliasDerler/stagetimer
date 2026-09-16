@@ -658,3 +658,48 @@ def test_main_display_shows_current_and_next_descriptions(qapp):
     assert display.current_box._description_full_text == "Opening remarks"
     assert display.next_bar._description.text() == "Q&A session"
     display.close()
+
+
+def test_main_display_shows_overtime_in_red_when_event_overruns(qapp):
+    from stagetimer.core.state_machine import ColorState
+
+    timetable = Timetable(events=[Event(name="Keynote", start_time=None, duration_seconds=60)])
+    engine = TimerEngine(timetable)
+    engine.start()
+    display = MainDisplay(engine, kiosk=False)
+    engine._remaining_seconds = -45  # force overtime without waiting on real time (mode is already RUNNING from start())
+    display._on_tick()
+    assert display.clock._text == "-00:45"
+    assert display.clock._last_color_state == ColorState.OVERTIME
+    display.close()
+
+
+def test_main_display_shows_schedule_delay_readout(qapp):
+    timetable = Timetable(
+        events=[
+            Event(name="Keynote", start_time=None, duration_seconds=600),
+            Event(name="Panel", start_time=None, duration_seconds=600),
+        ]
+    )
+    engine = TimerEngine(timetable)
+    engine.start()
+    engine._delay_at_entry = 90  # simulate having entered 90s late
+    display = MainDisplay(engine, kiosk=False)
+    # isVisible() reflects the whole ancestor chain, not just this widget's
+    # own setVisible() call — without showing the top-level display first,
+    # schedule_delay.isVisible() reads False regardless of wiring
+    # correctness (see other tests in this file that call display.show()
+    # for the same reason, e.g. test_pause_shortcut_toggles_engine).
+    display.show()
+    display._on_tick()
+    assert display.schedule_delay.isVisible() is True
+    assert "01:30" in display.schedule_delay.text()
+    display.close()
+
+
+def test_main_display_hides_schedule_delay_when_empty(qapp):
+    engine = TimerEngine(Timetable(events=[]))
+    display = MainDisplay(engine, kiosk=False)
+    display._on_tick()
+    assert display.schedule_delay.isVisible() is False
+    display.close()
