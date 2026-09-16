@@ -259,6 +259,13 @@ def test_format_overtime_zero_is_unsigned():
     assert format_overtime(0) == "00:00"
 
 
+def test_format_overtime_at_exact_hour_boundary():
+    from stagetimer.ui.display_widgets import format_overtime
+
+    assert format_overtime(3600) == "01:00:00"
+    assert format_overtime(-3600) == "-01:00:00"
+
+
 def test_schedule_delay_label_hidden_when_none(qapp):
     from stagetimer.ui.display_widgets import ScheduleDelayLabel
 
@@ -303,3 +310,24 @@ def test_schedule_delay_label_skips_redundant_update(qapp, monkeypatch):
     label.set_delay_seconds(120)
     monkeypatch.setattr(label, "setText", lambda *a, **k: (_ for _ in ()).throw(AssertionError("should not be called")))
     label.set_delay_seconds(120)  # identical value — must be a no-op
+
+
+def test_schedule_delay_label_transitions_from_behind_to_on_schedule(qapp):
+    from stagetimer.ui.display_widgets import ScheduleDelayLabel
+
+    label = ScheduleDelayLabel()
+    label.set_delay_seconds(225)
+    assert "BEHIND" in label.text()
+
+    label.set_delay_seconds(-10)
+    assert "ON SCHEDULE" in label.text()
+    assert "BEHIND" not in label.text()
+
+
+def test_schedule_delay_label_skips_update_for_values_rounding_to_same_second(qapp, monkeypatch):
+    from stagetimer.ui.display_widgets import ScheduleDelayLabel
+
+    label = ScheduleDelayLabel()
+    label.set_delay_seconds(120.0)
+    monkeypatch.setattr(label, "setText", lambda *a, **k: (_ for _ in ()).throw(AssertionError("should not be called")))
+    label.set_delay_seconds(120.3)  # different raw float, same rounded second — must still be skipped

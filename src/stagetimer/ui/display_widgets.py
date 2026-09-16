@@ -465,20 +465,21 @@ class ScheduleDelayLabel(QLabel):
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._last_seconds: float | None = None
+        self._last_seconds: int | None = None
         self.setVisible(False)
 
     def set_delay_seconds(self, seconds: float | None) -> None:
-        if seconds == self._last_seconds:
+        rounded = None if seconds is None else int(round(seconds))
+        if rounded == self._last_seconds:
             return
-        self._last_seconds = seconds
-        if seconds is None:
+        self._last_seconds = rounded
+        if rounded is None:
             self.setVisible(False)
             return
         self.setVisible(True)
-        if seconds <= 0:
+        if rounded <= 0:
             self.setText("ON SCHEDULE")
             self.setStyleSheet(styles.SCHEDULE_DELAY_ONTIME_QSS)
         else:
-            self.setText(f"SCHEDULE {format_remaining(seconds)} BEHIND")
+            self.setText(f"SCHEDULE {format_remaining(rounded)} BEHIND")
             self.setStyleSheet(styles.SCHEDULE_DELAY_BEHIND_QSS)
