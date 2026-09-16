@@ -206,3 +206,17 @@ def test_next_bar_hides_entirely_when_no_next_event(qapp):
     bar.set_next("Panel", 1200, "notes")
     bar.set_next(None, None)
     assert bar.isVisible() is False
+
+
+def test_next_bar_skips_redundant_update_when_args_unchanged(qapp, monkeypatch):
+    from stagetimer.ui.display_widgets import NextBar
+
+    bar = NextBar()
+    bar.show()
+    bar.set_next("Panel", 1200, "notes")
+
+    set_text_calls = []
+    monkeypatch.setattr(bar._name, "setText", lambda text: set_text_calls.append(text))
+
+    bar.set_next("Panel", 1200, "notes")  # identical args — should be skipped by the guard
+    assert set_text_calls == []
