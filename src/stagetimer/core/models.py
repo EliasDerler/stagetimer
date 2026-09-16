@@ -12,6 +12,8 @@ class Event:
     duration_seconds: int
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     description: str = ""
+    shrinkable: bool = False
+    min_duration_seconds: int = 0
 
     def to_dict(self) -> dict:
         return {
@@ -20,6 +22,8 @@ class Event:
             "start_time": self.start_time.strftime("%H:%M:%S") if self.start_time else None,
             "duration_seconds": self.duration_seconds,
             "description": self.description,
+            "shrinkable": self.shrinkable,
+            "min_duration_seconds": self.min_duration_seconds,
         }
 
     @classmethod
@@ -36,6 +40,8 @@ class Event:
             start_time=start_time,
             duration_seconds=int(data["duration_seconds"]),
             description=data.get("description", ""),
+            shrinkable=bool(data.get("shrinkable", False)),
+            min_duration_seconds=int(data.get("min_duration_seconds", 0)),
         )
 
 

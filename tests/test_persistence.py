@@ -110,3 +110,39 @@ def test_load_missing_description_defaults_to_empty_string(tmp_path: Path):
     loaded = persistence.load(path)
 
     assert loaded.events[0].description == ""
+
+
+def test_save_then_load_roundtrip_with_shrinkable(tmp_path: Path):
+    path = tmp_path / "timetable.json"
+    original = Timetable(
+        events=[
+            Event(
+                name="Changeover",
+                start_time=None,
+                duration_seconds=300,
+                shrinkable=True,
+                min_duration_seconds=60,
+            )
+        ],
+    )
+
+    persistence.save(path, original)
+    loaded = persistence.load(path)
+
+    assert loaded.events[0].shrinkable is True
+    assert loaded.events[0].min_duration_seconds == 60
+
+
+def test_load_missing_shrinkable_fields_default_to_false_and_zero(tmp_path: Path):
+    path = tmp_path / "timetable.json"
+    path.write_text(
+        '{"version": 1, "logo_path": null, "events": ['
+        '{"id": "x", "name": "Legacy", "start_time": null, "duration_seconds": 60}'
+        ']}',
+        encoding="utf-8",
+    )
+
+    loaded = persistence.load(path)
+
+    assert loaded.events[0].shrinkable is False
+    assert loaded.events[0].min_duration_seconds == 0
