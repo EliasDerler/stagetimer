@@ -27,6 +27,7 @@ QLabel#currentDescription {{
 NEXT_LABEL_QSS = f"color: {config.COLOR_NORMAL}; font-size: 26px; font-weight: bold;"
 NEXT_NAME_QSS = f"color: {config.COLOR_NORMAL}; font-size: 26px;"
 NEXT_DURATION_QSS = f"color: {config.COLOR_NORMAL}; font-size: 22px;"
+NEXT_DESCRIPTION_QSS = f"color: {config.COLOR_NORMAL}; font-size: 18px;"
 
 DIVIDER_QSS = f"background-color: {config.COLOR_NORMAL}; min-height: 2px; max-height: 2px;"
 

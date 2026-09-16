@@ -332,9 +332,10 @@ class ClockArea(QWidget):
 class NextBar(QWidget):
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
 
+        top_row = QHBoxLayout()
         left = QHBoxLayout()
         self._label = QLabel("NEXT")
         self._label.setStyleSheet(styles.NEXT_LABEL_QSS)
@@ -348,16 +349,46 @@ class NextBar(QWidget):
         self._duration.setStyleSheet(styles.NEXT_DURATION_QSS)
         self._duration.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
-        layout.addLayout(left, 1)
-        layout.addWidget(self._duration)
+        top_row.addLayout(left, 1)
+        top_row.addWidget(self._duration)
 
-    def set_next(self, name: str | None, duration_seconds: int | None) -> None:
+        self._description = QLabel("")
+        self._description.setObjectName("nextDescription")
+        self._description.setWordWrap(True)
+        self._description.setStyleSheet(styles.NEXT_DESCRIPTION_QSS)
+        # QLabel defaults to Qt::AutoText, which auto-detects HTML-looking
+        # content and renders it as rich text. A description like "Q&A
+        # session" would then get silently mangled on the live,
+        # audience-facing display. Force plain text so the description
+        # always renders literally, regardless of content.
+        self._description.setTextFormat(Qt.TextFormat.PlainText)
+        self._description.setVisible(False)
+
+        outer.addLayout(top_row)
+        outer.addWidget(self._description)
+
+        self._last_args: tuple[str | None, int | None, str | None] | None = None
+
+    def set_next(self, name: str | None, duration_seconds: int | None, description: str | None = None) -> None:
+        # NextBar.set_next() will be called ~5x/second from the main tick
+        # loop (Task 7); skip the redundant setText/setVisible work when
+        # nothing actually changed since the last call, mirroring the
+        # guard MiniTimetable.set_rows() and WatermarkLabel.set_margin_px()
+        # already use for the same reason.
+        args = (name, duration_seconds, description)
+        if args == self._last_args:
+            return
+        self._last_args = args
+
         if name is None:
             self.setVisible(False)
             return
         self.setVisible(True)
         self._name.setText(name)
         self._duration.setText(f"-{format_remaining(duration_seconds or 0)}")
+        text = (description or "").strip()
+        self._description.setText(text)
+        self._description.setVisible(bool(text))
 
 
 class MiniTimetable(QListWidget):

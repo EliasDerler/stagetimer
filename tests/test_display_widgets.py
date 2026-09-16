@@ -167,3 +167,42 @@ def test_current_box_collapses_newlines_in_description(qapp):
     box = CurrentBox()
     box.set_description("Line one\nLine two")
     assert "\n" not in box._description.text()
+
+
+def test_next_bar_shows_description_when_present(qapp):
+    from stagetimer.ui.display_widgets import NextBar
+
+    bar = NextBar()
+    bar.show()
+    bar.set_next("Panel", 1200, "Bring extra mics")
+    assert bar._description.text() == "Bring extra mics"
+    assert bar._description.isVisible() is True
+
+
+def test_next_bar_hides_description_row_when_absent(qapp):
+    from stagetimer.ui.display_widgets import NextBar
+
+    bar = NextBar()
+    bar.show()
+    bar.set_next("Panel", 1200, None)
+    assert bar._description.isVisible() is False
+
+
+def test_next_bar_description_word_wraps_not_truncated(qapp):
+    from stagetimer.ui.display_widgets import NextBar
+
+    bar = NextBar()
+    long_text = "This is a fairly long description with several words that should wrap across multiple lines"
+    bar.set_next("Panel", 1200, long_text)
+    assert bar._description.text() == long_text
+    assert bar._description.wordWrap() is True
+
+
+def test_next_bar_hides_entirely_when_no_next_event(qapp):
+    from stagetimer.ui.display_widgets import NextBar
+
+    bar = NextBar()
+    bar.show()
+    bar.set_next("Panel", 1200, "notes")
+    bar.set_next(None, None)
+    assert bar.isVisible() is False
