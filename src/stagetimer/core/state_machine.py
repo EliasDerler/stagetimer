@@ -47,6 +47,8 @@ class DisplayState:
     next_duration_seconds: int | None
     color_state: ColorState
     is_paused: bool
+    current_description: str | None = None
+    next_description: str | None = None
 
 
 @dataclass(frozen=True)
@@ -226,6 +228,8 @@ class TimerEngine:
                 next_duration_seconds=None,
                 color_state=ColorState.NORMAL,
                 is_paused=False,
+                current_description=None,
+                next_description=None,
             )
 
         if self._mode == Mode.AWAITING_START:
@@ -238,6 +242,8 @@ class TimerEngine:
                 next_duration_seconds=first.duration_seconds if first else None,
                 color_state=ColorState.NORMAL,
                 is_paused=False,
+                current_description=None,
+                next_description=first.description if first else None,
             )
 
         if self._current_index is None:
@@ -249,6 +255,8 @@ class TimerEngine:
                 next_duration_seconds=None,
                 color_state=ColorState.NORMAL,
                 is_paused=False,
+                current_description=None,
+                next_description=None,
             )
 
         if self._mode == Mode.BEFORE_FIRST:
@@ -261,6 +269,8 @@ class TimerEngine:
                 next_duration_seconds=upcoming.duration_seconds,
                 color_state=ColorState.NORMAL,
                 is_paused=False,
+                current_description=None,
+                next_description=upcoming.description,
             )
 
         if self._mode == Mode.AFTER_LAST:
@@ -272,6 +282,8 @@ class TimerEngine:
                 next_duration_seconds=None,
                 color_state=ColorState.NORMAL,
                 is_paused=False,
+                current_description=None,
+                next_description=None,
             )
 
         current_event = self._events[self._current_index]
@@ -285,6 +297,8 @@ class TimerEngine:
             next_duration_seconds=next_event.duration_seconds if next_event else None,
             color_state=color_state_for(self._remaining_seconds),
             is_paused=self._is_paused,
+            current_description=current_event.description,
+            next_description=next_event.description if next_event else None,
         )
 
     def get_schedule_overview(self) -> list[ScheduleRow]:

@@ -328,3 +328,43 @@ def test_schedule_overview_no_current_row_awaiting_start():
     rows = engine.get_schedule_overview()
     assert all(not r.is_current for r in rows)
     assert rows[0].effective_start_seconds is None
+
+
+# --- event descriptions -------------------------------------------------------
+
+DESCRIBED_EVENTS = [
+    Event(name="Keynote", start_time=time(9, 0, 0), duration_seconds=1800, description="Opening remarks"),
+    Event(name="Panel", start_time=time(9, 30, 0), duration_seconds=1200, description="Q&A session"),
+]
+
+
+def test_display_state_carries_current_and_next_description_while_running():
+    engine = make_engine(DESCRIBED_EVENTS)
+    engine.tick(at(9, 10))
+    state = engine.get_display_state()
+    assert state.current_description == "Opening remarks"
+    assert state.next_description == "Q&A session"
+
+
+def test_display_state_next_description_before_first():
+    engine = make_engine(DESCRIBED_EVENTS)
+    engine.tick(at(8, 45))
+    state = engine.get_display_state()
+    assert state.current_description is None
+    assert state.next_description == "Opening remarks"
+
+
+def test_display_state_no_description_when_empty():
+    engine = make_engine([])
+    engine.tick(at(9, 0))
+    state = engine.get_display_state()
+    assert state.current_description is None
+    assert state.next_description is None
+
+
+def test_display_state_no_description_after_last():
+    engine = make_engine(DESCRIBED_EVENTS)
+    engine.tick(at(23, 0))
+    state = engine.get_display_state()
+    assert state.current_description is None
+    assert state.next_description is None
