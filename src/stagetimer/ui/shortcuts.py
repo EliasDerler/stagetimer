@@ -14,26 +14,17 @@ def register_main_display_shortcuts(
 ) -> list[QShortcut]:
     """Register keyboard shortcuts scoped to `widget` (the fullscreen main
     display), so they don't fire while typing in the config window's text
-    fields (which live in a separate top-level widget)."""
+    fields (which live in a separate top-level widget).
 
-    def pause_resume_toggle() -> None:
-        state = engine.get_display_state()
-        if state.is_paused:
-            engine.resume()
-        else:
-            engine.pause()
+    Deliberately minimal: Space is the only playback action available on
+    the main display — it always advances to the next event (same action
+    as Skip Next), matching "space bar always required to start any
+    event." Every other manual control (Pause/Resume/Skip Prev/Skip
+    Next/Adjust) is reachable only through the Ctrl+E config window's Live
+    Controls buttons, never from the main display's own keyboard."""
 
     bindings: list[tuple[str, Callable[[], None]]] = [
-        ("Space", pause_resume_toggle),
-        ("Right", engine.skip_next),
-        ("N", engine.skip_next),
-        ("Left", engine.skip_prev),
-        ("P", engine.skip_prev),
-        ("Up", lambda: engine.adjust(60)),
-        ("=", lambda: engine.adjust(60)),
-        ("+", lambda: engine.adjust(60)),
-        ("Down", lambda: engine.adjust(-60)),
-        ("-", lambda: engine.adjust(-60)),
+        ("Space", engine.skip_next),
         ("Ctrl+E", toggle_config_window),
     ]
 

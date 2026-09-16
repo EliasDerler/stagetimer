@@ -40,23 +40,25 @@ def test_main_display_renders_current_event(qapp, engine):
     display.close()
 
 
-def test_pause_shortcut_toggles_engine(qapp, engine):
+def test_main_display_shortcuts_are_only_space_and_ctrl_e(qapp, engine):
     display = MainDisplay(engine, kiosk=False)
-    display.show()
-    display.setFocus()
-    QTest.qWaitForWindowExposed(display)
-    calls = {"toggled": 0}
-    register_main_display_shortcuts(display, engine, lambda: calls.update(toggled=calls["toggled"] + 1))
+    toggled = []
+    shortcuts = register_main_display_shortcuts(display, engine, lambda: toggled.append(1))
+    key_sequences = {s.key().toString() for s in shortcuts}
+    assert key_sequences == {"Space", "Ctrl+E"}
+    display.close()
 
-    engine.start(now=__import__("datetime").datetime(2026, 8, 11, 0, 0))
-    engine.tick(__import__("datetime").datetime(2026, 8, 11, 0, 10))
-    assert engine.get_display_state().is_paused is False
 
-    QTest.keyClick(display, Qt.Key.Key_Space)
-    assert engine.get_display_state().is_paused is True
-
-    QTest.keyClick(display, Qt.Key.Key_Space)
-    assert engine.get_display_state().is_paused is False
+def test_space_shortcut_calls_skip_next(qapp, engine):
+    calls = []
+    original_skip_next = engine.skip_next
+    engine.skip_next = lambda *a, **k: calls.append(1)
+    display = MainDisplay(engine, kiosk=False)
+    shortcuts = register_main_display_shortcuts(display, engine, lambda: None)
+    space_shortcut = next(s for s in shortcuts if s.key().toString() == "Space")
+    space_shortcut.activated.emit()
+    assert calls == [1]
+    engine.skip_next = original_skip_next
     display.close()
 
 
@@ -73,7 +75,7 @@ def test_ctrl_e_shortcut_invokes_toggle_callback(qapp, engine):
     display.close()
 
 
-def test_skip_next_shortcut(qapp, engine):
+def test_space_keypress_advances_to_next_event(qapp, engine):
     display = MainDisplay(engine, kiosk=False)
     display.show()
     display.setFocus()
@@ -84,7 +86,7 @@ def test_skip_next_shortcut(qapp, engine):
     engine.tick(__import__("datetime").datetime(2026, 8, 11, 0, 10))
     assert engine.get_display_state().current_name == "Keynote"
 
-    QTest.keyClick(display, Qt.Key.Key_Right)
+    QTest.keyClick(display, Qt.Key.Key_Space)
     assert engine.get_display_state().current_name == "Panel"
     display.close()
 
