@@ -6,7 +6,7 @@ from PySide6.QtGui import QFontDatabase
 from PySide6.QtWidgets import QApplication
 
 from stagetimer import config
-from stagetimer.core import persistence
+from stagetimer.core import day_store
 from stagetimer.core.state_machine import TimerEngine
 from stagetimer.ui.config_window import ConfigWindow
 from stagetimer.ui.main_display import MainDisplay
@@ -27,16 +27,20 @@ def run(kiosk: bool = True) -> int:
     app = QApplication(sys.argv)
     _load_bundled_fonts()
 
-    timetable = persistence.load(config.TIMETABLE_PATH)
+    active_day_id = day_store.ensure_startup_day(config.DAYS_DIR, config.ACTIVE_DAY_PATH, config.TIMETABLE_PATH)
+    timetable = day_store.load_day(config.DAYS_DIR, active_day_id)
     engine = TimerEngine(timetable)
 
     main_display = MainDisplay(engine, kiosk=kiosk)
     main_display.set_logo(timetable.logo_path)
 
-    state = {"config_window": None}
+    state = {"config_window": None, "active_day_id": active_day_id}
 
-    def on_logo_changed(path: str) -> None:
+    def on_logo_changed(path: str | None) -> None:
         main_display.set_logo(path)
+
+    def on_day_changed(day_id: str | None) -> None:
+        state["active_day_id"] = day_id
 
     def toggle_config_window() -> None:
         window = state["config_window"]
@@ -52,7 +56,7 @@ def run(kiosk: bool = True) -> int:
             if visible:
                 window.close()
                 return
-        window = ConfigWindow(engine, engine.timetable, on_logo_changed)
+        window = ConfigWindow(engine, engine.timetable, on_logo_changed, state["active_day_id"], on_day_changed)
         state["config_window"] = window
         window.show()
         window.raise_()
