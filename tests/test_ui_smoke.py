@@ -700,6 +700,12 @@ def test_main_display_shows_schedule_delay_readout(qapp):
 def test_main_display_hides_schedule_delay_when_empty(qapp):
     engine = TimerEngine(Timetable(events=[]))
     display = MainDisplay(engine, kiosk=False)
+    # isVisible() reflects the whole ancestor chain, not just this widget's
+    # own setVisible() call — without showing the top-level display first,
+    # schedule_delay.isVisible() reads False regardless of wiring
+    # correctness (see other tests in this file that call display.show()
+    # for the same reason, e.g. test_pause_shortcut_toggles_engine).
+    display.show()
     display._on_tick()
     assert display.schedule_delay.isVisible() is False
     display.close()
