@@ -7,10 +7,12 @@ A fullscreen countdown timer for live events, built for a Raspberry Pi 5 connect
 ## Features
 
 - Fullscreen kiosk display: current event, countdown clock, next event
-- Color states: white → yellow (5 min) → red (3 min) → flashing red/white (1 min)
+- Color states: white → yellow (5 min) → red (3 min) → flashing red/white (1 min) → steady red once an event overruns (overtime)
 - Optional background watermark image behind the clock
 - Hybrid scheduling: events can have a fixed wall-clock start time, or chain automatically off the previous event's end — or skip start times entirely and drive the whole day manually with a **Start** button
-- Live operator controls: pause/resume, skip next/prev, ±1 minute, all available both as keyboard shortcuts on the main display and as buttons in the config window
+- No auto-start, ever: every event, including the first of the day, only begins when the operator presses Space (or Start/Skip Next in the config window) — an event that runs long shows a live, ticking red overtime countdown instead of silently auto-advancing
+- A small readout under the main clock shows the day's cumulative schedule delay ("SCHEDULE 3:45 BEHIND" / "ON SCHEDULE")
+- Live operator controls — pause/resume, skip next/prev, ±1 minute — are buttons in the config window only; the main display's own keyboard is deliberately minimal (just Space and Ctrl+E), so nothing can be nudged by accident on the audience-facing screen
 - `Ctrl+E` opens a configuration window to build the day's timetable, upload a logo, and control playback — no restart needed
 - Runs unattended via systemd/labwc autostart, survives reboots and crashes
 
@@ -64,20 +66,17 @@ Pass `-FirstTimeSetup` on the very first deploy to also run `install.sh` remotel
 
 ## Using it
 
-- **`Ctrl+E`** — open/close the configuration window
-- **Space** — pause/resume the current event
-- **←** / **P** — skip to previous event
-- **→** / **N** — skip to next event
-- **↑** / **+** — add 1 minute to the current event
-- **↓** / **-** — subtract 1 minute
+The main, audience-facing display only has two keyboard shortcuts, deliberately — nothing else can be triggered by an accidental keypress on the screen everyone's watching:
 
-In the config window:
+- **`Ctrl+E`** — open/close the configuration window
+- **Space** — advance to the next event. This is the *only* way any event ever starts or advances — there's no auto-start, not even for the first event of the day, and an event that runs past its own duration just shows a growing red overtime countdown until Space is pressed.
+
+Everything else is a button in the config window (`Ctrl+E`):
 - **Add / Edit / Delete / Move Up / Move Down** — build the timetable. Each event has a name, an optional start time (uncheck "Has start time" for an event that just runs right after the previous one), and a duration.
 - **Choose Logo...** — set a small logo shown top-right
-- **Start** — jump straight to the first event now (only enabled when nothing is currently playing) — the way to kick off a timetable that has no fixed start times at all
-- The same Pause/Resume/Skip/±1 min controls as the keyboard shortcuts
+- **Start / Pause / Resume / Skip Prev / Skip Next / -1 min / +1 min** — live playback controls, operator-only (not reachable from the main display's own keyboard)
 
-Your timetable is saved automatically on every edit to `~/.local/share/stagetimer/timetable.json`.
+Your timetable is saved automatically on every edit.
 
 ## Development
 
