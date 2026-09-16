@@ -169,6 +169,19 @@ def test_current_box_collapses_newlines_in_description(qapp):
     assert "\n" not in box._description.text()
 
 
+def test_current_box_skips_redundant_update_when_description_unchanged(qapp, monkeypatch):
+    from stagetimer.ui.display_widgets import CurrentBox
+
+    box = CurrentBox()
+    box.set_description("Some notes")
+
+    set_text_calls = []
+    monkeypatch.setattr(box._description, "setText", lambda text: set_text_calls.append(text))
+
+    box.set_description("Some notes")  # identical arg — should be skipped by the guard
+    assert set_text_calls == []
+
+
 def test_next_bar_shows_description_when_present(qapp):
     from stagetimer.ui.display_widgets import NextBar
 
