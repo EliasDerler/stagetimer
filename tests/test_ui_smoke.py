@@ -309,3 +309,19 @@ def test_config_window_repeated_paste_stacks_copies(qapp, engine):
     names = [e.name for e in window.model.events()]
     assert names == ["Changeover", "Changeover", "Changeover", "Closing"]
     window.close()
+
+
+def test_main_display_shows_current_and_next_descriptions(qapp):
+    timetable = Timetable(
+        events=[
+            Event(name="Keynote", start_time=None, duration_seconds=1800, description="Opening remarks"),
+            Event(name="Panel", start_time=None, duration_seconds=1200, description="Q&A session"),
+        ]
+    )
+    engine = TimerEngine(timetable)
+    engine.start()
+    display = MainDisplay(engine, kiosk=False)
+    display._on_tick()
+    assert display.current_box._description_full_text == "Opening remarks"
+    assert display.next_bar._description.text() == "Q&A session"
+    display.close()

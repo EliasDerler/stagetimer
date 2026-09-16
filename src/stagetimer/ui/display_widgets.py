@@ -108,6 +108,7 @@ class CurrentBox(QFrame):
         # always renders literally, regardless of content.
         self._description.setTextFormat(Qt.TextFormat.PlainText)
         self._description_full_text = ""
+        self._last_description_arg: str | None = None
 
         name_row = QHBoxLayout()
         name_row.addWidget(self._name, 0)
@@ -121,6 +122,14 @@ class CurrentBox(QFrame):
         self._name.setText(name or "")
 
     def set_description(self, description: str | None) -> None:
+        # CurrentBox.set_description() is called ~5x/second from the main
+        # tick loop (Task 7); skip the redundant strip/replace + elision
+        # work when nothing actually changed since the last call, mirroring
+        # the guard NextBar.set_next() (and MiniTimetable.set_rows(),
+        # WatermarkLabel.set_margin_px()) already use for the same reason.
+        if description == self._last_description_arg:
+            return
+        self._last_description_arg = description
         self._description_full_text = (description or "").strip().replace("\n", " ")
         self._update_description_elision()
 

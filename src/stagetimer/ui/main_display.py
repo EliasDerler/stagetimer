@@ -97,24 +97,29 @@ class MainDisplay(QWidget):
 
         if state.mode == Mode.EMPTY:
             self.current_box.set_name(NO_EVENTS_TEXT)
+            self.current_box.set_description(None)
             self.clock.set_time_and_state(BLANK_CLOCK_TEXT, ColorState.NORMAL)
             self.next_bar.set_next(None, None)
         elif state.mode == Mode.AWAITING_START:
             self.current_box.set_name(AWAITING_START_TEXT)
+            self.current_box.set_description(None)
             self.clock.set_time_and_state(BLANK_CLOCK_TEXT, ColorState.NORMAL)
-            self.next_bar.set_next(state.next_name, state.next_duration_seconds)
+            self.next_bar.set_next(state.next_name, state.next_duration_seconds, state.next_description)
         elif state.mode == Mode.BEFORE_FIRST:
             self.current_box.set_name(STANDBY_TEXT)
+            self.current_box.set_description(None)
             self.clock.set_time_and_state(format_remaining(state.remaining_seconds), ColorState.NORMAL)
-            self.next_bar.set_next(state.next_name, state.next_duration_seconds)
+            self.next_bar.set_next(state.next_name, state.next_duration_seconds, state.next_description)
         elif state.mode == Mode.AFTER_LAST:
             self.current_box.set_name(DAY_COMPLETE_TEXT)
+            self.current_box.set_description(None)
             self.clock.set_time_and_state(BLANK_CLOCK_TEXT, ColorState.NORMAL)
             self.next_bar.set_next(None, None)
         else:  # RUNNING or PAUSED
             self.current_box.set_name(state.current_name)
+            self.current_box.set_description(state.current_description)
             self.clock.set_time_and_state(format_remaining(state.remaining_seconds), state.color_state)
-            self.next_bar.set_next(state.next_name, state.next_duration_seconds)
+            self.next_bar.set_next(state.next_name, state.next_duration_seconds, state.next_description)
 
         self.realtime_clock.setText(datetime.now().strftime("%H:%M:%S"))
         self.mini_timetable.set_rows(self.engine.get_schedule_overview())
