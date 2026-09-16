@@ -128,3 +128,42 @@ def test_mini_timetable_rebuilds_when_rows_actually_differ(qapp, monkeypatch):
 
     widget.set_rows([ScheduleRow(name="B", duration_seconds=60, effective_start_seconds=0, is_current=False)])
     assert clear_calls == [1]
+
+
+def test_current_box_shows_description_next_to_name(qapp):
+    from stagetimer.ui.display_widgets import CurrentBox
+
+    box = CurrentBox()
+    box.set_name("Keynote")
+    box.set_description("Opening remarks")
+    assert box._description.text() == "Opening remarks"
+
+
+def test_current_box_elides_long_description(qapp):
+    from stagetimer.ui.display_widgets import CurrentBox
+
+    box = CurrentBox()
+    box._description.setFixedWidth(80)
+    box.set_name("Keynote")
+    long_text = "This is a very long description that will not fit in the available space at all"
+    box.set_description(long_text)
+    assert box._description.text() != long_text
+    assert box._description.text().endswith("…")
+
+
+def test_current_box_clears_description(qapp):
+    from stagetimer.ui.display_widgets import CurrentBox
+
+    box = CurrentBox()
+    box.set_name("Keynote")
+    box.set_description("Some notes")
+    box.set_description(None)
+    assert box._description.text() == ""
+
+
+def test_current_box_collapses_newlines_in_description(qapp):
+    from stagetimer.ui.display_widgets import CurrentBox
+
+    box = CurrentBox()
+    box.set_description("Line one\nLine two")
+    assert "\n" not in box._description.text()

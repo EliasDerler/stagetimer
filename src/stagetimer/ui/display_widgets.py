@@ -92,17 +92,50 @@ class CurrentBox(QFrame):
         self.setObjectName("currentBox")
         self.setStyleSheet(styles.CURRENT_BOX_QSS)
 
-        layout = QVBoxLayout(self)
         self._caption = QLabel("Current")
         self._caption.setObjectName("currentCaption")
+
         self._name = QLabel("")
         self._name.setObjectName("currentName")
         self._name.setWordWrap(True)
+
+        self._description = QLabel("")
+        self._description.setObjectName("currentDescription")
+        # QLabel defaults to Qt::AutoText, which auto-detects HTML-looking
+        # content and renders it as rich text. A description like "Q&A
+        # session" would then get silently mangled on the live,
+        # audience-facing display. Force plain text so the description
+        # always renders literally, regardless of content.
+        self._description.setTextFormat(Qt.TextFormat.PlainText)
+        self._description_full_text = ""
+
+        name_row = QHBoxLayout()
+        name_row.addWidget(self._name, 0)
+        name_row.addWidget(self._description, 1)
+
+        layout = QVBoxLayout(self)
         layout.addWidget(self._caption)
-        layout.addWidget(self._name)
+        layout.addLayout(name_row)
 
     def set_name(self, name: str | None) -> None:
         self._name.setText(name or "")
+
+    def set_description(self, description: str | None) -> None:
+        self._description_full_text = (description or "").strip().replace("\n", " ")
+        self._update_description_elision()
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 (Qt override)
+        super().resizeEvent(event)
+        self._update_description_elision()
+
+    def _update_description_elision(self) -> None:
+        if not self._description_full_text:
+            self._description.setText("")
+            return
+        metrics = QFontMetrics(self._description.font())
+        available = max(0, self._description.width())
+        elided = metrics.elidedText(self._description_full_text, Qt.TextElideMode.ElideRight, available)
+        self._description.setText(elided)
 
 
 class LogoBox(QLabel):

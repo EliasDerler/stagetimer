@@ -17,6 +17,11 @@ QLabel#currentName {{
     font-size: 44px;
     font-weight: bold;
 }}
+QLabel#currentDescription {{
+    color: {config.COLOR_NORMAL};
+    font-size: 22px;
+    padding-left: 12px;
+}}
 """
 
 NEXT_LABEL_QSS = f"color: {config.COLOR_NORMAL}; font-size: 26px; font-weight: bold;"
