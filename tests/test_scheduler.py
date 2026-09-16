@@ -88,6 +88,21 @@ def test_resolve_pending_single_event():
     assert result.remaining_seconds == 1800
 
 
+def test_resolve_pending_always_targets_first_anchor_even_past_a_later_one():
+    """Two anchors in the list — 9:00 and 10:00 — and `now` is past both of
+    them. resolve_pending must still target the first anchor (index 0), not
+    "catch up" to the later 10:00 one just because it's closer to now."""
+    events = [
+        Event(name="Keynote", start_time=time(9, 0, 0), duration_seconds=1800),  # 09:00-09:30
+        Event(name="Panel", start_time=None, duration_seconds=1800),             # chained, ~09:30-10:00
+        Event(name="Lunch", start_time=time(10, 0, 0), duration_seconds=3600),   # 10:00-11:00, anchored
+    ]
+    result = scheduler.resolve_pending(at(10, 30), events)
+    assert result.mode == "PENDING"
+    assert result.index == 0
+    assert result.remaining_seconds == -90 * 60
+
+
 # --- compute_effective_start_times: unchanged behavior, unchanged tests -----
 
 def test_compute_effective_start_times_all_anchored():
