@@ -6,7 +6,7 @@ from datetime import datetime, time
 from stagetimer.core.models import Event
 
 
-def _seconds_since_midnight(dt: datetime) -> int:
+def seconds_since_midnight(dt: datetime) -> int:
     return dt.hour * 3600 + dt.minute * 60 + dt.second
 
 
@@ -15,11 +15,16 @@ def _time_to_seconds(t: time) -> int:
 
 
 @dataclass(frozen=True)
-class Resolution:
-    """Result of resolving 'what should be on screen right now' from pure
-    wall-clock math, with no knowledge of pause/skip/adjust overrides."""
+class PendingResolution:
+    """Result of resolving 'is there a target ahead, and how far away is
+    it' while nothing has ever been manually started (TimerEngine's
+    `_current_index is None`). Unlike the old `resolve()` this replaced,
+    `remaining_seconds` can go negative — the target time passing implies
+    nothing automatically; it's purely informational, always relative to
+    the *first* anchored event in the whole list (there is no notion of
+    "current" here at all)."""
 
-    mode: str  # "EMPTY" | "AWAITING_START" | "BEFORE_FIRST" | "RUNNING" | "AFTER_LAST"
+    mode: str  # "EMPTY" | "AWAITING_START" | "PENDING"
     index: int | None
     remaining_seconds: int
 
@@ -65,44 +70,28 @@ def compute_effective_start_times(events: list[Event]) -> list[int | None]:
     return [e.start for e in _compute_effective_times(events)]
 
 
-def resolve(now: datetime, events: list[Event]) -> Resolution:
-    """Resolve the current/next event purely from wall-clock time.
-
-    `events` is read in list order; events without an explicit `start_time`
-    chain off the effective end of the event before them (see
-    `_compute_effective_times`).
+def resolve_pending(now: datetime, events: list[Event]) -> PendingResolution:
+    """Resolve 'what's next, and how far away' purely from wall-clock time,
+    for use only while nothing has ever been manually started.
 
     - EMPTY: no events configured.
     - AWAITING_START: events exist but none has an effective start (no event
-      anywhere in the list has a `start_time`, directly or via chaining) —
-      only the Start button or Skip Next/Prev can begin playback.
-    - BEFORE_FIRST: `now` is before the next anchored event's effective
-      start (covers both "before the first event of the day" and any gap
-      between two scheduled events). `index` points at that upcoming event.
-    - RUNNING: `now` falls within an anchored event's
-      [effective_start, effective_end) range.
-    - AFTER_LAST: `now` is at or past the effective end of the last anchored
-      event in the chain.
+      anywhere in the list has a `start_time`, directly or via chaining).
+    - PENDING: the first anchored event in the list is the target; `index`
+      points at it and `remaining_seconds` is `target_start - now`, which
+      can be negative if `now` has already passed it — this function never
+      reports anything other than PENDING once any anchor exists, no matter
+      how far past it `now` is, since nothing here decides what's "current"
+      or "done" — only `TimerEngine`'s own operator-driven state does that.
     """
     if not events:
-        return Resolution(mode="EMPTY", index=None, remaining_seconds=0)
+        return PendingResolution(mode="EMPTY", index=None, remaining_seconds=0)
 
     effective = _compute_effective_times(events)
     anchored = [e for e in effective if e.start is not None]
     if not anchored:
-        return Resolution(mode="AWAITING_START", index=None, remaining_seconds=0)
+        return PendingResolution(mode="AWAITING_START", index=None, remaining_seconds=0)
 
-    now_s = _seconds_since_midnight(now)
-
-    last = anchored[-1]
-    if now_s >= last.end:
-        return Resolution(mode="AFTER_LAST", index=last.index, remaining_seconds=0)
-
-    for e in anchored:
-        if e.start <= now_s < e.end:
-            return Resolution(mode="RUNNING", index=e.index, remaining_seconds=e.end - now_s)
-        if now_s < e.start:
-            return Resolution(mode="BEFORE_FIRST", index=e.index, remaining_seconds=e.start - now_s)
-
-    # Unreachable given the AFTER_LAST check above, but keeps mypy/pyright happy.
-    return Resolution(mode="AFTER_LAST", index=last.index, remaining_seconds=0)
+    now_s = seconds_since_midnight(now)
+    first = anchored[0]
+    return PendingResolution(mode="PENDING", index=first.index, remaining_seconds=first.start - now_s)
