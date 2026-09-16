@@ -250,20 +250,20 @@ class ConfigWindow(QWidget):
         self._active_day_name = next((d.name for d in days if d.id == self._active_day_id), "No day loaded")
         self.setWindowTitle(f"StageTimer — Configuration — {self._active_day_name}")
         for day in days:
-            action = QAction(day.name, self)
+            action = QAction(day.name, self._day_menu)
             action.setCheckable(True)
             action.setChecked(day.id == self._active_day_id)
             action.triggered.connect(lambda checked=False, day_id=day.id: self._switch_to_day(day_id))
             self._day_menu.addAction(action)
         self._day_menu.addSeparator()
-        new_action = QAction("New Day...", self)
+        new_action = QAction("New Day...", self._day_menu)
         new_action.triggered.connect(self._new_day)
         self._day_menu.addAction(new_action)
-        rename_action = QAction("Rename Current Day...", self)
+        rename_action = QAction("Rename Current Day...", self._day_menu)
         rename_action.triggered.connect(self._rename_current_day)
         rename_action.setEnabled(self._active_day_id is not None)
         self._day_menu.addAction(rename_action)
-        delete_action = QAction("Delete Current Day...", self)
+        delete_action = QAction("Delete Current Day...", self._day_menu)
         delete_action.triggered.connect(self._delete_current_day)
         delete_action.setEnabled(self._active_day_id is not None)
         self._day_menu.addAction(delete_action)
@@ -283,13 +283,19 @@ class ConfigWindow(QWidget):
             if reply != QMessageBox.StandardButton.Yes:
                 return
         timetable = day_store.load_day(self._days_dir, day_id)
+        self._apply_day(day_id, timetable)
+
+    def _apply_day(self, day_id: str | None, timetable: Timetable) -> None:
         self._active_day_id = day_id
         self._logo_path = timetable.logo_path
         self.model.set_events(timetable.sorted_events())
         self.engine.set_timetable(timetable)
         self.logo_label.setText(self._logo_path or "No logo selected")
         self._on_logo_changed(self._logo_path)
-        day_store.set_active_day_id(self._active_day_path, day_id)
+        if day_id is not None:
+            day_store.set_active_day_id(self._active_day_path, day_id)
+        else:
+            day_store.clear_active_day(self._active_day_path)
         self._on_day_changed(day_id)
         self._refresh_day_menu()
 
@@ -342,15 +348,7 @@ class ConfigWindow(QWidget):
             fallback = max(remaining, key=lambda d: d.modified_at)
             self._switch_to_day(fallback.id)
         else:
-            self._active_day_id = None
-            self._logo_path = None
-            self.model.set_events([])
-            self.engine.set_timetable(Timetable())
-            self.logo_label.setText("No logo selected")
-            self._on_logo_changed(None)
-            day_store.clear_active_day(self._active_day_path)
-            self._on_day_changed(None)
-            self._refresh_day_menu()
+            self._apply_day(None, Timetable())
 
     def _add_event(self) -> None:
         dialog = EventEditDialog(parent=self)

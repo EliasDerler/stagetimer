@@ -556,6 +556,73 @@ def test_config_window_delete_last_day_leaves_empty_state(qapp, engine, monkeypa
     window.close()
 
 
+def test_config_window_rename_current_day(qapp, engine, monkeypatch, tmp_path):
+    from stagetimer.core import day_store
+    from stagetimer.ui.config_window import QInputDialog
+
+    days_dir = tmp_path / "days"
+    active_day_path = tmp_path / "active_day.json"
+    timetable = Timetable(events=[Event(name="Keynote", start_time=None, duration_seconds=600)])
+    day_a = day_store.create_day(days_dir, "Friday", timetable)
+
+    window = ConfigWindow(
+        engine, timetable, lambda p: None, day_a, lambda d: None, days_dir=days_dir, active_day_path=active_day_path
+    )
+
+    monkeypatch.setattr(QInputDialog, "getText", lambda *a, **k: ("Opening Night", True))
+    window._rename_current_day()
+
+    assert window._active_day_name == "Opening Night"
+    assert window.windowTitle().endswith("Opening Night")
+    assert day_store.list_days(days_dir)[0].name == "Opening Night"
+    window.close()
+
+
+def test_config_window_rename_blank_name_cancels(qapp, engine, monkeypatch, tmp_path):
+    from stagetimer.core import day_store
+    from stagetimer.ui.config_window import QInputDialog
+
+    days_dir = tmp_path / "days"
+    active_day_path = tmp_path / "active_day.json"
+    timetable = Timetable(events=[Event(name="Keynote", start_time=None, duration_seconds=600)])
+    day_a = day_store.create_day(days_dir, "Friday", timetable)
+
+    window = ConfigWindow(
+        engine, timetable, lambda p: None, day_a, lambda d: None, days_dir=days_dir, active_day_path=active_day_path
+    )
+
+    monkeypatch.setattr(QInputDialog, "getText", lambda *a, **k: ("   ", True))
+    window._rename_current_day()
+
+    assert window._active_day_name == "Friday"
+    assert day_store.list_days(days_dir)[0].name == "Friday"
+    window.close()
+
+
+def test_config_window_rename_with_no_active_day_is_noop(qapp, engine, monkeypatch, tmp_path):
+    from stagetimer.core import day_store
+    from stagetimer.ui.config_window import QInputDialog, QMessageBox
+
+    days_dir = tmp_path / "days"
+    active_day_path = tmp_path / "active_day.json"
+    timetable = Timetable(events=[Event(name="Keynote", start_time=None, duration_seconds=600)])
+    day_a = day_store.create_day(days_dir, "Friday", timetable)
+
+    window = ConfigWindow(
+        engine, timetable, lambda p: None, day_a, lambda d: None, days_dir=days_dir, active_day_path=active_day_path
+    )
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.Yes)
+    window._delete_current_day()  # brings the window to "no active day"
+    assert window._active_day_id is None
+
+    getText_calls = []
+    monkeypatch.setattr(QInputDialog, "getText", lambda *a, **k: (getText_calls.append(1), ("x", True))[1])
+    window._rename_current_day()
+
+    assert getText_calls == []  # never even prompted — the no-op guard returned first
+    window.close()
+
+
 def test_config_window_persist_and_apply_saves_through_day_store(qapp, engine, tmp_path):
     from stagetimer.core import day_store
 
