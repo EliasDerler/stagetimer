@@ -1187,7 +1187,7 @@ def test_delay_carries_forward_unshrunk_across_a_normal_event():
     ]
     engine = make_engine(events)
     engine.start(now=at(9, 3, 0))  # A entered 3 min late
-    engine.skip_next(now=at(9, 3, 0) + timedelta(seconds=600))  # B entered exactly 600s (its planned duration) after A
+    engine.skip_next(now=at(9, 3, 0) + timedelta(seconds=300))  # B entered exactly 300s (A's planned duration) after A — i.e. A ran its full planned length, no more, no less
     state = engine.get_display_state()
     assert state.current_name == "B"
     assert state.schedule_delay_seconds == 180
@@ -1196,7 +1196,12 @@ def test_delay_carries_forward_unshrunk_across_a_normal_event():
 def test_shrinkable_event_absorbs_delay_and_resolves_it():
     """Worked example from the design spec: entering a shrinkable event 3
     minutes late, with a floor that comfortably allows absorbing the full
-    3 minutes, produces exactly 0 minutes late entering the event after."""
+    3 minutes, produces exactly 0 minutes late entering the event after —
+    but NOT while the shrinkable event itself is still being displayed:
+    per the design, schedule_delay_seconds stays flat at the delay
+    frozen on entry until the operator actually advances past it (see the
+    "Live cumulative delay" section of the design spec) — it doesn't
+    live-drain as the shrunk countdown ticks down."""
     events = [
         Event(name="A", start_time=time(9, 0, 0), duration_seconds=300),  # 9:00-9:05
         Event(
@@ -1211,7 +1216,17 @@ def test_shrinkable_event_absorbs_delay_and_resolves_it():
     state = engine.get_display_state()
     assert state.current_name == "Changeover"
     assert state.remaining_seconds == 120  # 300s planned - 180s absorbed = 120s, well above the 60s floor
-    assert state.schedule_delay_seconds == 0  # fully absorbed
+    assert state.schedule_delay_seconds == 180  # still flat at the delay frozen on entry — not yet "resolved"
+
+    # Advance to C exactly when Changeover's shrunk countdown reaches zero
+    # (9:08:00 + 120s = 9:10:00) — chaining always uses Changeover's PLANNED
+    # duration (300s) for C's target, so C's target_start is 9:05:00 + 300s
+    # = 9:10:00, exactly matching this advance moment: the 3 minutes of
+    # delay is now fully resolved, with no separate "credit" bookkeeping.
+    engine.skip_next(now=at(9, 10, 0))
+    state = engine.get_display_state()
+    assert state.current_name == "C"
+    assert state.schedule_delay_seconds == 0
 
 
 def test_shrinkable_event_never_shrinks_when_entered_on_time():
@@ -1247,17 +1262,19 @@ def test_shrinkable_event_clamps_at_its_floor_when_delay_exceeds_capacity():
 
 
 def test_gap_absorbs_overrun_before_it_counts_as_delay():
-    """A finishes 1 minute late relative to its own chained continuation,
-    but B has 2 minutes of deliberate slack built in (anchored later than
-    the chain would naturally land) — the overrun is fully absorbed by the
-    gap and never shows up as lateness entering B."""
+    """A's own chained continuation would be 9:25 (9:00 start + 1500s), but
+    B is anchored at 9:30 — 5 minutes of deliberate slack. Releasing A well
+    past its own 9:25 chained end, right up to (but not past) B's own 9:30
+    anchor, still shows zero delay: delay is always measured against the
+    event being *entered*'s own target (B's 9:30), never the previous
+    event's chained continuation, so the gap absorbs the overrun for free."""
     events = [
-        Event(name="A", start_time=time(9, 0, 0), duration_seconds=1500),   # 9:00-9:25, chains to 9:28 for B pre-slack... actually see below
-        Event(name="B", start_time=time(9, 30, 0), duration_seconds=300),   # anchored — 2 min of slack after A's natural chained end
+        Event(name="A", start_time=time(9, 0, 0), duration_seconds=1500),   # 9:00-9:25 (chained continuation)
+        Event(name="B", start_time=time(9, 30, 0), duration_seconds=300),   # anchored 5 min later than A's chained end
     ]
     engine = make_engine(events)
     engine.start(now=at(9, 0, 0))
-    engine.skip_next(now=at(9, 29, 0))  # A actually released 4 min after its own 9:25 chained end, but still inside B's 9:30 slack
+    engine.skip_next(now=at(9, 30, 0))  # A released well past its own 9:25 chained end, but exactly at B's 9:30 anchor
     state = engine.get_display_state()
     assert state.current_name == "B"
     assert state.schedule_delay_seconds == 0
@@ -1284,12 +1301,12 @@ def test_reset_schedule_offset_persists_across_a_transition():
     engine.reset_schedule()
     assert engine.get_display_state().schedule_delay_seconds == 0
 
-    # Advance to Panel at exactly the moment that would be "on time" relative
-    # to the original (un-forgiven) plan — since 5 minutes were forgiven, this
-    # should now read as 5 minutes *ahead*, clamped to a floor of 0 for display
-    # purposes is NOT applied to the raw delay used elsewhere, but the display
-    # never shows negative "ahead" time (see main_display/ScheduleDelayLabel
-    # in a later task) — here we only assert the engine's own raw number.
+    # Advance to Panel at exactly its own on-time target (9:30) — since 5
+    # minutes were forgiven via the offset above, this reads as 5 minutes
+    # *ahead* at the engine level. The display layer (a later task) clamps
+    # "ahead" to a neutral "ON SCHEDULE" state rather than showing a
+    # negative number — that clamping is display-only and doesn't apply to
+    # the engine's own raw value, which is what this test asserts.
     engine.skip_next(now=at(9, 30, 0))
     state = engine.get_display_state()
     assert state.current_name == "Panel"
