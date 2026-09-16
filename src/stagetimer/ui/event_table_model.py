@@ -5,7 +5,16 @@ from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
 from stagetimer.core.models import Event
 from stagetimer.ui.display_widgets import format_remaining
 
-COLUMNS = ["Name", "Start Time", "Duration"]
+COLUMNS = ["Name", "Start Time", "Duration", "Description"]
+
+DESCRIPTION_PREVIEW_MAX_CHARS = 40
+
+
+def _description_preview(description: str) -> str:
+    collapsed = " ".join(description.split("\n"))
+    if len(collapsed) > DESCRIPTION_PREVIEW_MAX_CHARS:
+        return collapsed[:DESCRIPTION_PREVIEW_MAX_CHARS] + "…"
+    return collapsed
 
 
 class EventTableModel(QAbstractTableModel):
@@ -37,6 +46,8 @@ class EventTableModel(QAbstractTableModel):
             return event.start_time.strftime("%H:%M") if event.start_time else ""
         if column == 2:
             return format_remaining(event.duration_seconds)
+        if column == 3:
+            return _description_preview(event.description)
         return None
 
     # -- data access -----------------------------------------------------------
@@ -54,6 +65,11 @@ class EventTableModel(QAbstractTableModel):
 
     def add_event(self, event: Event) -> None:
         self.set_events([*self._events, event])
+
+    def insert_event(self, index: int, event: Event) -> None:
+        events = list(self._events)
+        events.insert(index, event)
+        self.set_events(events)
 
     def replace_event(self, row: int, event: Event) -> None:
         events = list(self._events)

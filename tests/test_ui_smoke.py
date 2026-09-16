@@ -195,3 +195,38 @@ def test_main_display_shows_awaiting_start_text(qapp):
     display._on_tick()
     assert display.current_box._name.text() == AWAITING_START_TEXT
     display.close()
+
+
+def test_event_table_model_description_column_preview(qapp):
+    from stagetimer.ui.event_table_model import EventTableModel
+
+    long_text = "A" * 50
+    model = EventTableModel(
+        [Event(name="Keynote", start_time=time(9, 0), duration_seconds=600, description=long_text)]
+    )
+    index = model.index(0, 3)
+    preview = model.data(index, Qt.ItemDataRole.DisplayRole)
+    assert preview == "A" * 40 + "…"
+
+
+def test_event_table_model_description_column_collapses_newlines(qapp):
+    from stagetimer.ui.event_table_model import EventTableModel
+
+    model = EventTableModel(
+        [Event(name="Keynote", start_time=time(9, 0), duration_seconds=600, description="Line one\nLine two")]
+    )
+    index = model.index(0, 3)
+    assert model.data(index, Qt.ItemDataRole.DisplayRole) == "Line one Line two"
+
+
+def test_event_table_model_insert_event_at_specific_position(qapp):
+    from stagetimer.ui.event_table_model import EventTableModel
+
+    model = EventTableModel(
+        [
+            Event(name="A", start_time=time(9, 0), duration_seconds=60),
+            Event(name="C", start_time=time(9, 10), duration_seconds=60),
+        ]
+    )
+    model.insert_event(1, Event(name="B", start_time=time(9, 5), duration_seconds=60))
+    assert [e.name for e in model.events()] == ["A", "B", "C"]
