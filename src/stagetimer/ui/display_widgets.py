@@ -28,6 +28,22 @@ def format_remaining(seconds: float) -> str:
     return f"{minutes:02d}:{secs:02d}"
 
 
+def format_overtime(seconds: float) -> str:
+    """Like `format_remaining`, but for values that can be negative
+    (overtime) — rendered with a leading '-' and the magnitude, never
+    clamped at zero. Used for the main clock (which can go negative once
+    an event overruns) and the pre-start countdown (which can too, per the
+    design spec); `format_remaining` stays used everywhere a value is
+    always forward-looking and positive (the Next bar, the mini-timetable)."""
+    sign = "-" if seconds < 0 else ""
+    total = int(round(abs(seconds)))
+    hours, rem = divmod(total, 3600)
+    minutes, secs = divmod(rem, 60)
+    if hours > 0:
+        return f"{sign}{hours:02d}:{minutes:02d}:{secs:02d}"
+    return f"{sign}{minutes:02d}:{secs:02d}"
+
+
 def format_clock_time(seconds: int | None) -> str:
     if seconds is None:
         return "--:--"
@@ -229,6 +245,7 @@ class ClockLabel(QWidget):
             ColorState.NORMAL: config.COLOR_NORMAL,
             ColorState.WARNING_YELLOW: config.COLOR_WARNING,
             ColorState.DANGER_RED: config.COLOR_DANGER,
+            ColorState.OVERTIME: config.COLOR_DANGER,
         }
         self._fill_color = QColor(color_map[color_state])
 
@@ -436,3 +453,32 @@ class MiniTimetable(QListWidget):
             self.addItem(item)
         if current_item is not None:
             self.scrollToItem(current_item, QAbstractItemView.ScrollHint.PositionAtCenter)
+
+
+class ScheduleDelayLabel(QLabel):
+    """Small readout meant to sit directly under the main clock, showing
+    cumulative schedule delay across the whole day — independent of the
+    current event's own countdown (which the big clock already shows).
+    Hidden entirely when there's nothing meaningful to report (EMPTY,
+    AWAITING_START, AFTER_LAST)."""
+
+    def __init__(self, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._last_seconds: float | None = None
+        self.setVisible(False)
+
+    def set_delay_seconds(self, seconds: float | None) -> None:
+        if seconds == self._last_seconds:
+            return
+        self._last_seconds = seconds
+        if seconds is None:
+            self.setVisible(False)
+            return
+        self.setVisible(True)
+        if seconds <= 0:
+            self.setText("ON SCHEDULE")
+            self.setStyleSheet(styles.SCHEDULE_DELAY_ONTIME_QSS)
+        else:
+            self.setText(f"SCHEDULE {format_remaining(seconds)} BEHIND")
+            self.setStyleSheet(styles.SCHEDULE_DELAY_BEHIND_QSS)

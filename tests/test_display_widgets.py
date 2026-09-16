@@ -233,3 +233,73 @@ def test_next_bar_skips_redundant_update_when_args_unchanged(qapp, monkeypatch):
 
     bar.set_next("Panel", 1200, "notes")  # identical args — should be skipped by the guard
     assert set_text_calls == []
+
+
+def test_format_overtime_positive_same_as_format_remaining():
+    from stagetimer.ui.display_widgets import format_overtime
+
+    assert format_overtime(90) == "01:30"
+
+
+def test_format_overtime_negative_gets_minus_prefix():
+    from stagetimer.ui.display_widgets import format_overtime
+
+    assert format_overtime(-90) == "-01:30"
+
+
+def test_format_overtime_negative_hours():
+    from stagetimer.ui.display_widgets import format_overtime
+
+    assert format_overtime(-3661) == "-01:01:01"
+
+
+def test_format_overtime_zero_is_unsigned():
+    from stagetimer.ui.display_widgets import format_overtime
+
+    assert format_overtime(0) == "00:00"
+
+
+def test_schedule_delay_label_hidden_when_none(qapp):
+    from stagetimer.ui.display_widgets import ScheduleDelayLabel
+
+    label = ScheduleDelayLabel()
+    assert label.isVisible() is False
+    label.set_delay_seconds(None)
+    assert label.isVisible() is False
+
+
+def test_schedule_delay_label_shows_behind_text(qapp):
+    from stagetimer.ui.display_widgets import ScheduleDelayLabel
+
+    label = ScheduleDelayLabel()
+    label.set_delay_seconds(225)
+    assert label.isVisible() is True
+    assert "03:45" in label.text()
+    assert "BEHIND" in label.text()
+
+
+def test_schedule_delay_label_shows_on_schedule_at_zero(qapp):
+    from stagetimer.ui.display_widgets import ScheduleDelayLabel
+
+    label = ScheduleDelayLabel()
+    label.set_delay_seconds(0)
+    assert label.isVisible() is True
+    assert "ON SCHEDULE" in label.text()
+
+
+def test_schedule_delay_label_shows_on_schedule_when_ahead(qapp):
+    from stagetimer.ui.display_widgets import ScheduleDelayLabel
+
+    label = ScheduleDelayLabel()
+    label.set_delay_seconds(-300)  # running ahead — still reads as "on schedule", not alarming
+    assert label.isVisible() is True
+    assert "ON SCHEDULE" in label.text()
+
+
+def test_schedule_delay_label_skips_redundant_update(qapp, monkeypatch):
+    from stagetimer.ui.display_widgets import ScheduleDelayLabel
+
+    label = ScheduleDelayLabel()
+    label.set_delay_seconds(120)
+    monkeypatch.setattr(label, "setText", lambda *a, **k: (_ for _ in ()).throw(AssertionError("should not be called")))
+    label.set_delay_seconds(120)  # identical value — must be a no-op

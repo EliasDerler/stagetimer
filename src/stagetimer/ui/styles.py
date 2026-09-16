@@ -44,3 +44,12 @@ QListWidget::item {{
     padding: 1px 0;
 }}
 """
+
+SCHEDULE_DELAY_BEHIND_QSS = (
+    f"color: {config.COLOR_DANGER}; background: rgba(255,59,48,0.15); "
+    "font-size: 20px; font-weight: bold; padding: 4px 14px; border-radius: 14px;"
+)
+SCHEDULE_DELAY_ONTIME_QSS = (
+    f"color: {config.COLOR_SUCCESS_GREEN}; background: rgba(34,197,94,0.15); "
+    "font-size: 20px; font-weight: bold; padding: 4px 14px; border-radius: 14px;"
+)
