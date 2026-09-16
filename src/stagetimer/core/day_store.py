@@ -43,7 +43,7 @@ def list_days(days_dir: Path) -> list[DayMeta]:
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
             metas.append(DayMeta(id=data["id"], name=data["name"], modified_at=path.stat().st_mtime))
-        except (json.JSONDecodeError, KeyError, TypeError, OSError) as exc:
+        except (json.JSONDecodeError, KeyError, TypeError, OSError, UnicodeDecodeError, AttributeError) as exc:
             print(f"stagetimer: failed to read day file {path}: {exc}", file=sys.stderr)
             _backup_corrupt_file(path)
     return sorted(metas, key=lambda m: m.name)
@@ -56,7 +56,7 @@ def load_day(days_dir: Path, day_id: str) -> Timetable:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
         return Timetable.from_dict(data["timetable"])
-    except (json.JSONDecodeError, KeyError, ValueError, TypeError) as exc:
+    except (json.JSONDecodeError, KeyError, ValueError, TypeError, UnicodeDecodeError, AttributeError) as exc:
         print(f"stagetimer: failed to load day {path}: {exc}", file=sys.stderr)
         _backup_corrupt_file(path)
         return Timetable()
@@ -94,7 +94,7 @@ def get_active_day_id(active_day_path: Path) -> str | None:
     try:
         data = json.loads(active_day_path.read_text(encoding="utf-8"))
         return data.get("active_day_id")
-    except (json.JSONDecodeError, OSError):
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError, AttributeError):
         return None
 
 

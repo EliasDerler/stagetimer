@@ -112,6 +112,35 @@ def test_list_days_skips_and_backs_up_corrupt_file(days_dir):
     assert list(days_dir.glob("bad-id.json.bak-*"))
 
 
+def test_list_days_skips_non_utf8_file(days_dir):
+    days_dir.mkdir(parents=True)
+    (days_dir / "bad-encoding.json").write_bytes(b"\xff\xfe\x00\x01not valid utf8")
+    day_store.create_day(days_dir, "Friday")
+
+    days = day_store.list_days(days_dir)
+
+    assert [d.name for d in days] == ["Friday"]
+
+
+def test_load_day_non_dict_timetable_value_backs_up_and_returns_empty(days_dir):
+    days_dir.mkdir(parents=True)
+    bad_path = days_dir / "bad-shape.json"
+    bad_path.write_text(json.dumps({"id": "bad-shape", "name": "Bad", "timetable": [1, 2, 3]}), encoding="utf-8")
+
+    result = day_store.load_day(days_dir, "bad-shape")
+
+    assert result.events == []
+    backups = list(days_dir.glob("bad-shape.json.bak-*"))
+    assert len(backups) == 1
+
+
+def test_get_active_day_id_non_dict_json_returns_none(active_day_path):
+    active_day_path.parent.mkdir(parents=True, exist_ok=True)
+    active_day_path.write_text(json.dumps([1, 2, 3]), encoding="utf-8")
+
+    assert day_store.get_active_day_id(active_day_path) is None
+
+
 def test_active_day_roundtrip(active_day_path):
     assert day_store.get_active_day_id(active_day_path) is None
 
