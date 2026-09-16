@@ -36,35 +36,36 @@ The last of four colleague-feedback items, deliberately tackled last since it's 
 
 Two pieces of new engine state:
 
-- `_current_entered_at: datetime | None` — wall-clock moment the operator most recently advanced *forward* into whatever is current (`start()` or `skip_next()`). `None` before the first advance of the day.
-- `_delay_at_entry: float` (seconds) — the schedule delay **frozen at the moment `_current_entered_at` was set**, recomputed fresh (replaced, not accumulated) on every forward advance as:
+- `_delay_at_entry: float` (seconds) — the *raw, mechanical* schedule delay, recomputed fresh (replaced, not accumulated) on every forward advance (`start()`/`skip_next()`) as:
 
   `_delay_at_entry = (moment of advancing) − target_start(the event just entered)`
 
   where `target_start` comes from `scheduler.compute_effective_start_times()`. If that target is `None` (nothing anchored anywhere yet in the chain up to this point), `_delay_at_entry = 0` — there's nothing meaningful to compare against, so treat it as "no info," not "on time" or "late."
+- `_delay_reset_offset: float = 0` (seconds) — only ever changed by the "Reset Schedule" action (below) or by `set_timetable()`. Subtracted from the raw delay everywhere it's used, so an operator-forgiven stretch stays forgiven going forward instead of resurfacing at the next transition.
 
 This single replacement (not an accumulating `+=`) is sufficient to carry accumulated lateness correctly through the whole day, because `target_start` values are fixed from the original plan: an event that starts late but runs its full planned duration hands the *same* lateness forward automatically, since the next event's target is a fixed offset away regardless of when it was actually entered. Worked through by hand (see brainstorming notes): entering an event 3 minutes late and running it exactly as planned reproduces "3 minutes late" when entering the next one; entering a *shrinkable* event 3 minutes late, with a floor that lets it absorb the full 3 minutes, produces "0 minutes late" entering the one after — no separate "credit" mechanism needed, it falls straight out of the formula.
 
-**Effective (possibly shrunk) duration**, computed once at the moment an event becomes current via a forward advance:
+**Effective (possibly shrunk) duration**, computed once at the moment an event becomes current via a forward advance, using the *offset-adjusted* delay (so a shrinkable event never compresses to compensate for lateness the operator has explicitly reset away):
 
   `effective_duration = duration_seconds` if not shrinkable, else
-  `effective_duration = max(min_duration_seconds, duration_seconds − max(0, _delay_at_entry))`
+  `effective_duration = max(min_duration_seconds, duration_seconds − max(0, _delay_at_entry − _delay_reset_offset))`
 
-This is what the countdown actually starts from (i.e. `_remaining_seconds` is initialized to this value instead of always `duration_seconds`, exactly like `_jump_to` does today except for the shrink adjustment). A shrinkable event ahead of schedule (`_delay_at_entry < 0`) is never inflated — shrink only ever helps catch up, never pads.
+This is what the countdown actually starts from (i.e. `_remaining_seconds` is initialized to this value instead of always `duration_seconds`, exactly like `_jump_to` does today except for the shrink adjustment). A shrinkable event ahead of schedule is never inflated — shrink only ever helps catch up, never pads.
 
-**Live cumulative delay, shown in the small readout, at any tick:**
+**Live cumulative delay, shown in the small readout, at any tick** — always the *raw* mode-appropriate delay minus the persistent offset:
 
-  - While something is current (`RUNNING`/`PAUSED`): `_delay_at_entry + max(0, -_remaining_seconds)` — i.e. the delay frozen at entry, plus however far into overtime the *current* event has gone right now. This is intentionally *not* live-decreasing while a shrinkable event runs on-schedule — it stays flat at the frozen value and resolves cleanly to whatever the next entry computes, the instant the operator actually advances. (Considered a live gradually-draining version instead; rejected as more complex to implement and no clearer to the operator than "watch it resolve when you finish this event.")
-  - Before anything has ever started (`BEFORE_FIRST`): `max(0, now − target_start(upcoming event))` — the same pre-start countdown-gone-negative case from decision 5, expressed as delay.
+  - While something is current (`RUNNING`/`PAUSED`): `(_delay_at_entry + max(0, -_remaining_seconds)) − _delay_reset_offset` — i.e. the delay frozen at entry, plus however far into overtime the *current* event has gone right now, adjusted by the reset offset. This is intentionally *not* live-decreasing while a shrinkable event runs on-schedule — it stays flat at the frozen (offset-adjusted) value and resolves cleanly to whatever the next entry computes, the instant the operator actually advances. (Considered a live gradually-draining version instead; rejected as more complex to implement and no clearer to the operator than "watch it resolve when you finish this event.")
+  - Before anything has ever started (`BEFORE_FIRST`): `max(0, now − target_start(upcoming event)) − _delay_reset_offset` — the same pre-start countdown-gone-negative case from decision 5, expressed as delay.
   - `AWAITING_START`/`EMPTY`: no target exists, nothing to show — the readout is hidden.
+  - `AFTER_LAST`: also hidden — once the day is over there's nothing left to be "behind" on. (This mode doesn't route through `_jump_to`/the shrink-and-delay path at all today — `skip_next()` sets it directly — so no engine change is needed here beyond the display layer treating it like `EMPTY`.)
 
 **Gaps absorb overrun for free, automatically** — no separate mechanism needed. If event B has its own anchor later than where pure chaining from event A would land (deliberate slack), then `target_start(B)` already reflects that later time, so `_delay_at_entry` computed against it is only positive if the *actual* overrun ate past the gap too. An event that finishes late but still within a built-in buffer produces a zero or even negative `_delay_at_entry` for what follows — "ahead of the (slack-adjusted) target," exactly as intended.
 
-**Backward moves and manual adjustment don't touch delay.** `skip_prev()` always resets the target event to its full, unshrunk `duration_seconds` (no shrink logic applied — going backward isn't "arriving via the normal flow") and does not update `_current_entered_at`/`_delay_at_entry`. `adjust(±60s)` (existing Ctrl+E buttons) changes only `_remaining_seconds` for whatever's current, same as today — it's a live on-the-fly correction, not a schedule-delay event.
+**Backward moves and manual adjustment don't touch delay.** `skip_prev()` always resets the target event to its full, unshrunk `duration_seconds` (no shrink logic applied — going backward isn't "arriving via the normal flow") and does not update `_delay_at_entry`. `adjust(±60s)` (existing Ctrl+E buttons) changes only `_remaining_seconds` for whatever's current, same as today — it's a live on-the-fly correction, not a schedule-delay event.
 
-**"Reset Schedule"** (new Ctrl+E action): sets `_current_entered_at = now` and `_delay_at_entry = 0`. The live delay formula continues from there unchanged — effectively "treat this exact moment as if I'd just walked into the current event on time."
+**"Reset Schedule"** (new Ctrl+E action): captures whatever the live formula (above) currently evaluates to — using the *current* mode's formula, whether that's mid-event, mid-overtime, or during the pre-start countdown — and adds it into `_delay_reset_offset`, so the displayed value becomes exactly 0 immediately, from any state. Concretely: `_delay_reset_offset += <current live delay value computed just before this action runs>`. This is why the offset has to be a separate, persistent value rather than folded into `_delay_at_entry` directly: `_delay_at_entry` gets wholesale replaced at the next transition regardless, but the *offset* needs to survive across transitions so a deliberately-forgiven stretch doesn't resurface the moment the operator advances to the next event.
 
-**On `set_timetable()`** (day switch, app restart): `_current_entered_at` and `_delay_at_entry` reset to their initial `None`/`0` state, alongside everything else that already resets there.
+**On `set_timetable()`** (day switch, app restart): `_delay_at_entry` and `_delay_reset_offset` both reset to `0`, alongside everything else that already resets there.
 
 ## Data model
 
@@ -91,7 +92,7 @@ schedule_delay_seconds: float | None = None
 - `ColorState` (`core/state_machine.py`) gains `OVERTIME`. `color_state_for()` checks `remaining_seconds < 0` first, before the existing yellow/red/flash thresholds, and returns `OVERTIME` — a steady (non-flashing) red, distinct from the existing `FLASH` state's alternating colors, matching "static" in decision 3. `ClockLabel._apply_color_state` gets a new `OVERTIME: config.COLOR_DANGER` mapping (reusing the existing danger-red color, no new color constant needed) alongside the existing `NORMAL`/`WARNING_YELLOW`/`DANGER_RED` entries, and the `FLASH` special-case stays exactly as-is for the last-minute-of-a-normal-countdown case.
 - A new small widget (name TBD at planning time, e.g. `ScheduleDelayLabel`) is added to `main_display.py`'s layout directly between `clock_area` and the divider — "under the main clock" as asked for. Renders the small pill/text style from the accepted mockup (Option C): red text/badge when `schedule_delay_seconds > 0`, a neutral/green "on schedule" state at 0, hidden entirely when `schedule_delay_seconds is None`.
 - The pre-start countdown (`BEFORE_FIRST` mode) reuses the same big-clock overtime rendering once its target passes zero — no separate code path, just the same negative-aware formatting/coloring applied to whatever `remaining_seconds` `BEFORE_FIRST` carries.
-- The mini-timetable (schedule overview) is **not** changed — it continues showing each event's original planned duration and target time from `compute_effective_start_times()`/`duration_seconds`, unaffected by any live shrink applied to whichever event happens to be current. It's a reference view of the plan, not live state (consistent with decision 7 — no special "this was compressed" treatment anywhere).
+- The mini-timetable (schedule overview) **and the Next bar's duration** are both **not** changed — both continue showing each event's original planned `duration_seconds`, unaffected by any live shrink. Projecting a *hypothetical* shrunk duration for an event that hasn't been entered yet would require guessing at a future entry moment that doesn't exist yet; both stay reference views of the plan, not live state (consistent with decision 7 — no special "this was/will be compressed" treatment anywhere except the current event's own live countdown).
 
 ## Config window
 
