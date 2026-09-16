@@ -142,6 +142,10 @@ class TimerEngine:
         self._last_tick = now
         self._pending_index = resolution.index
         if resolution.mode == "EMPTY":
+            # Defensive/unreachable in practice: tick() already returns
+            # early whenever self._events is empty, before _tick_pending is
+            # ever called, and resolve_pending() only returns "EMPTY" when
+            # there are no events. Kept as a safety net, not a live path.
             self._mode = Mode.EMPTY
         elif resolution.mode == "AWAITING_START":
             self._mode = Mode.AWAITING_START
@@ -153,14 +157,22 @@ class TimerEngine:
         """Jump straight to the first event and begin playing it — the
         only way the very first event of the day ever becomes current,
         since nothing does this automatically. `now` is exposed only for
-        deterministic testing; real callers (buttons, shortcuts) omit it."""
+        deterministic testing; real callers (buttons, shortcuts) omit it.
+        Do not connect this directly to a Qt signal that passes its own
+        arguments (e.g. QAbstractButton.clicked(bool)) — wrap in a lambda,
+        or the passed-through argument will corrupt `now`. QShortcut.activated
+        is safe (zero arguments)."""
         if not self._events:
             return
         self._advance_to(0, now)
 
     def skip_next(self, now: datetime | None = None) -> None:
         """`now` is exposed only for deterministic testing, same as
-        `start()` — real callers (buttons, shortcuts) omit it."""
+        `start()` — real callers (buttons, shortcuts) omit it.
+        Do not connect this directly to a Qt signal that passes its own
+        arguments (e.g. QAbstractButton.clicked(bool)) — wrap in a lambda,
+        or the passed-through argument will corrupt `now`. QShortcut.activated
+        is safe (zero arguments)."""
         if not self._events:
             return
         target = 0 if self._current_index is None else self._current_index + 1
@@ -179,10 +191,17 @@ class TimerEngine:
         used to anchor `_last_tick` (see the comment below), so it's
         exposed for the same test-determinism reason as `start()`/
         `skip_next()`'s `now` parameter, not because skip_prev's own
-        behavior depends on timing."""
+        behavior depends on timing.
+        Do not connect this directly to a Qt signal that passes its own
+        arguments (e.g. QAbstractButton.clicked(bool)) — wrap in a lambda,
+        or the passed-through argument will corrupt `now`. QShortcut.activated
+        is safe (zero arguments)."""
         if not self._events:
             return
-        target = 0 if self._current_index is None else max(self._current_index - 1, 0)
+        if self._mode == Mode.AFTER_LAST:
+            target = len(self._events) - 1
+        else:
+            target = 0 if self._current_index is None else max(self._current_index - 1, 0)
         self._current_index = target
         self._pending_index = None
         self._is_paused = False
@@ -247,15 +266,18 @@ class TimerEngine:
 
     def reset_schedule(self) -> None:
         """Zero out the schedule-delay readout immediately, from whatever
-        mode we're in right now — folds the current raw delay into a
-        persistent offset, so a deliberately-forgiven stretch (e.g. an
-        intentionally-extended break) doesn't resurface at the next
-        transition, the way a one-shot reset of `_delay_at_entry` alone
-        would (that value gets wholesale replaced on every forward
-        advance regardless)."""
+        mode we're in right now — replaces (not accumulates onto) the
+        persistent offset with whatever the display currently reads, so a
+        deliberately-forgiven stretch (e.g. an intentionally-extended
+        break) doesn't resurface at the next transition, the way a
+        one-shot reset of `_delay_at_entry` alone would (that value gets
+        wholesale replaced on every forward advance regardless). Must be
+        `=`, not `+=`: this needs to be idempotent — pressing it twice in a
+        row (nothing else having changed) must still leave the display at
+        exactly 0, not drive it further from zero."""
         raw = self._raw_schedule_delay()
         if raw is not None:
-            self._delay_reset_offset += raw
+            self._delay_reset_offset = raw
 
     def _raw_schedule_delay(self) -> float | None:
         if self._mode in (Mode.EMPTY, Mode.AWAITING_START, Mode.AFTER_LAST):

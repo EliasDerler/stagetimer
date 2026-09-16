@@ -273,6 +273,24 @@ def test_skip_prev_does_not_shrink_even_a_shrinkable_event():
     assert engine.get_display_state().current_name == "A"
 
 
+def test_skip_prev_from_after_last_lands_on_the_actual_last_event():
+    events = [
+        Event(name="A", start_time=time(9, 0, 0), duration_seconds=300),
+        Event(name="B", start_time=None, duration_seconds=300),
+        Event(name="C", start_time=None, duration_seconds=300),
+    ]
+    engine = make_engine(events)
+    engine.start(now=at(9, 0, 0))
+    engine.skip_next()  # B
+    engine.skip_next()  # C
+    engine.skip_next()  # AFTER_LAST
+    assert engine.get_display_state().mode.name == "AFTER_LAST"
+
+    engine.skip_prev()
+    state = engine.get_display_state()
+    assert state.current_name == "C"  # the actual last event, not B
+
+
 # --- pause / resume -----------------------------------------------------------
 
 def test_pause_freezes_remaining_time():
@@ -523,6 +541,38 @@ def test_reset_schedule_noop_when_nothing_to_reset():
     engine.tick(at(9, 0))
     engine.reset_schedule()  # must not raise
     assert engine.get_display_state().schedule_delay_seconds is None
+
+
+def test_reset_schedule_is_idempotent_on_repeated_presses():
+    engine = make_engine(TWO_EVENTS)
+    engine.start(now=at(9, 5, 0))  # 5 min late
+    engine.reset_schedule()
+    assert engine.get_display_state().schedule_delay_seconds == 0
+
+    engine.reset_schedule()  # press again, nothing else changed
+    assert engine.get_display_state().schedule_delay_seconds == 0
+
+    engine.reset_schedule()  # and again
+    assert engine.get_display_state().schedule_delay_seconds == 0
+
+
+def test_reset_schedule_then_shrinkable_event_still_shrinks():
+    events = [
+        Event(name="A", start_time=time(9, 0, 0), duration_seconds=300),
+        Event(
+            name="Changeover", start_time=None, duration_seconds=300,
+            shrinkable=True, min_duration_seconds=60,
+        ),
+    ]
+    engine = make_engine(events)
+    engine.start(now=at(9, 0, 0))
+    engine.reset_schedule()  # no delay yet, this should be a no-op (already 0)
+    engine.reset_schedule()  # press again for good measure
+
+    engine.skip_next(now=at(9, 15, 0))  # 10 minutes late entering Changeover
+    state = engine.get_display_state()
+    assert state.current_name == "Changeover"
+    assert state.remaining_seconds == 60  # still shrinks correctly — floor-clamped, not disabled
 
 
 # --- descriptions (unchanged behavior, updated to use start() explicitly) ---
