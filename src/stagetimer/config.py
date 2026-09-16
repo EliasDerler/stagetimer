@@ -27,6 +27,8 @@ FONT_FAMILY = "JetBrains Mono"
 DATA_DIR = Path.home() / ".local" / "share" / "stagetimer"
 TIMETABLE_PATH = DATA_DIR / "timetable.json"
 LOGO_PATH = DATA_DIR / "logo.png"
+DAYS_DIR = DATA_DIR / "days"
+ACTIVE_DAY_PATH = DATA_DIR / "active_day.json"
 
 # Colors
 COLOR_NORMAL = "#FFFFFF"
