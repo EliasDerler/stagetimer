@@ -111,6 +111,14 @@ class EventEditDialog(QDialog):
         else:
             start_time = None
         duration_seconds = self.duration_minutes.value() * 60
+        min_duration_seconds = self.min_duration_minutes.value() * 60
+        if self.shrinkable_checkbox.isChecked() and min_duration_seconds > duration_seconds:
+            QMessageBox.warning(
+                self,
+                "Invalid shrink floor",
+                "The shrink floor can't be longer than the event's own duration.",
+            )
+            return
         description = self.description_edit.toPlainText().strip()
 
         kwargs = dict(
@@ -119,7 +127,7 @@ class EventEditDialog(QDialog):
             duration_seconds=duration_seconds,
             description=description,
             shrinkable=self.shrinkable_checkbox.isChecked(),
-            min_duration_seconds=self.min_duration_minutes.value() * 60,
+            min_duration_seconds=min_duration_seconds,
         )
         if self._original_id:
             self._result_event = Event(id=self._original_id, **kwargs)

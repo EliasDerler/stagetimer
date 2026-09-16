@@ -760,6 +760,27 @@ def test_event_edit_dialog_defaults_not_shrinkable(qapp):
     assert result.min_duration_seconds == 0
 
 
+def test_event_edit_dialog_rejects_floor_longer_than_duration(qapp, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+
+    from stagetimer.ui.config_window import EventEditDialog
+
+    warnings = []
+    monkeypatch.setattr(
+        QMessageBox, "warning", lambda *a, **k: warnings.append(1) or QMessageBox.StandardButton.Ok
+    )
+
+    dialog = EventEditDialog()
+    dialog.name_edit.setText("Changeover")
+    dialog.duration_minutes.setValue(2)
+    dialog.shrinkable_checkbox.setChecked(True)
+    dialog.min_duration_minutes.setValue(5)  # floor (5 min) exceeds duration (2 min)
+    dialog._on_accept()
+
+    assert warnings == [1]
+    assert dialog.result_event() is None  # rejected — dialog does not close/accept
+
+
 def test_config_window_reset_schedule_button_calls_engine(qapp, engine):
     calls = []
     engine.reset_schedule = lambda: calls.append(1)
