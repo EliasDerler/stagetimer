@@ -72,7 +72,7 @@ New module `core/day_store.py`, sitting alongside `core/persistence.py` (which k
 
 ## Testing
 
-- `core/day_store.py`: create/save/load/list/rename/delete round-trip; `ensure_startup_day()` covers all three startup branches (existing days-with-valid-active-pointer, existing days-with-stale-pointer, legacy-single-file migration, and fresh-install-no-data-at-all); migration leaves the legacy file untouched on disk.
+- `core/day_store.py`: create/save/load/list/rename/delete round-trip; `ensure_startup_day()` covers all four startup branches (existing days-with-valid-active-pointer, existing days-with-stale-pointer, legacy-single-file migration, and fresh-install-no-data-at-all); migration leaves the legacy file untouched on disk.
 - `ui/config_window.py`: Day menu reflects `day_store.list_days()` and checks the active day; `_switch_to_day` updates model/engine/logo/title and persists the new active id; switching while RUNNING/PAUSED is gated behind confirmation (test both Yes and No/cancel paths); `_new_day` covers both empty and duplicate-events paths; `_delete_current_day` covers both "other days remain → falls back to most-recently-modified" and "last day deleted → empty state" paths; `_persist_and_apply` now writes through `day_store.save_day` with the correct id.
 
 ## Error handling / edge cases
