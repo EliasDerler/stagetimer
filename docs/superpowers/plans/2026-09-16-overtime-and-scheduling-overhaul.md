@@ -683,15 +683,18 @@ class TimerEngine:
 
     def reset_schedule(self) -> None:
         """Zero out the schedule-delay readout immediately, from whatever
-        mode we're in right now — folds the current raw delay into a
-        persistent offset, so a deliberately-forgiven stretch (e.g. an
-        intentionally-extended break) doesn't resurface at the next
-        transition, the way a one-shot reset of `_delay_at_entry` alone
-        would (that value gets wholesale replaced on every forward
-        advance regardless)."""
+        mode we're in right now — replaces (not accumulates onto) the
+        persistent offset with whatever the display currently reads, so a
+        deliberately-forgiven stretch (e.g. an intentionally-extended
+        break) doesn't resurface at the next transition, the way a
+        one-shot reset of `_delay_at_entry` alone would (that value gets
+        wholesale replaced on every forward advance regardless). Must be
+        `=`, not `+=`: this needs to be idempotent — pressing it twice in a
+        row (nothing else having changed) must still leave the display at
+        exactly 0, not drive it further from zero."""
         raw = self._raw_schedule_delay()
         if raw is not None:
-            self._delay_reset_offset += raw
+            self._delay_reset_offset = raw
 
     def _raw_schedule_delay(self) -> float | None:
         if self._mode in (Mode.EMPTY, Mode.AWAITING_START, Mode.AFTER_LAST):
