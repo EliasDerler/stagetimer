@@ -190,11 +190,16 @@ class ConfigWindow(QWidget):
         next_btn = QPushButton("Skip Next »")
         minus_btn = QPushButton("-1 min")
         plus_btn = QPushButton("+1 min")
-        start_btn.clicked.connect(self.engine.start)
+        # start()/skip_next()/skip_prev() take an optional `now` kwarg (for
+        # deterministic tests) — connecting them directly as Qt slots would
+        # let clicked's `checked: bool` argument leak into that parameter
+        # (PySide passes it to any slot that accepts >=1 positional arg), so
+        # these are wrapped in lambdas to call them with no arguments.
+        start_btn.clicked.connect(lambda: self.engine.start())
         pause_btn.clicked.connect(self.engine.pause)
         resume_btn.clicked.connect(self.engine.resume)
-        prev_btn.clicked.connect(self.engine.skip_prev)
-        next_btn.clicked.connect(self.engine.skip_next)
+        prev_btn.clicked.connect(lambda: self.engine.skip_prev())
+        next_btn.clicked.connect(lambda: self.engine.skip_next())
         minus_btn.clicked.connect(lambda: self.engine.adjust(-60))
         plus_btn.clicked.connect(lambda: self.engine.adjust(60))
 

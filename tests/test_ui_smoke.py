@@ -48,6 +48,7 @@ def test_pause_shortcut_toggles_engine(qapp, engine):
     calls = {"toggled": 0}
     register_main_display_shortcuts(display, engine, lambda: calls.update(toggled=calls["toggled"] + 1))
 
+    engine.start(now=__import__("datetime").datetime(2026, 8, 11, 0, 0))
     engine.tick(__import__("datetime").datetime(2026, 8, 11, 0, 10))
     assert engine.get_display_state().is_paused is False
 
@@ -79,6 +80,7 @@ def test_skip_next_shortcut(qapp, engine):
     QTest.qWaitForWindowExposed(display)
     register_main_display_shortcuts(display, engine, lambda: None)
 
+    engine.start(now=__import__("datetime").datetime(2026, 8, 11, 0, 0))
     engine.tick(__import__("datetime").datetime(2026, 8, 11, 0, 10))
     assert engine.get_display_state().current_name == "Keynote"
 
